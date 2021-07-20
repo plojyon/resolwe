@@ -67,15 +67,6 @@ jobs:
           username: ${{ secrets.AWS_ACCESS_KEY_ID }}
           password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Build and push image ${{ matrix.image }}
-        if: ${{ always() && github.ref == 'refs/heads/master' }}
-        uses: docker/build-push-action@v2
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          tags: ${{ env.AWS_REGISTRY }}/${{ matrix.repository }}:${{ matrix.devel-tag }}
-          push: ${{ github.events.inputs.simulate == 'false' || github.event_name == 'push' }}
-
       - name: Get the docker image tag
         if: ${{ always() && startsWith(github.ref, 'refs/tags') }}
         id: get_tag
@@ -84,6 +75,15 @@ jobs:
       - name: Get fake image tag
         if: ${{ always() && github.events.inputs.tag != '' }}
         run: echo "VERSION=github.events.inputs.tag" >> $GITHUB_ENV
+
+      - name: Build and push untagged image ${{ matrix.image }}
+        if: ${{ always() && env.VERSION == "" && github.ref == 'refs/heads/master' }}
+        uses: docker/build-push-action@v2
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          tags: ${{ env.AWS_REGISTRY }}/${{ matrix.repository }}:${{ matrix.devel-tag }}
+          push: ${{ github.events.inputs.simulate == 'false' || github.event_name == 'push' }}
 
       - name: Build and push tagged image ${{ matrix.image }} for pre-release
         if: ${{ always() && startsWith(github.ref, 'refs/tags') }}
