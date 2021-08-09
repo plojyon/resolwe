@@ -10,6 +10,11 @@ This project adheres to `Semantic Versioning <http://semver.org/>`_.
 28.2.1 - 2021-07-13
 ===================
 
+Added
+-----
+- Add `compare_models_and_csv` management script to check if all
+  `ReferencedPath`s point to a valid file in the aws database
+
 Fixed
 -----
 - Speed up deleting storage locations by considering only referenced paths
