@@ -6,14 +6,19 @@ All notable changes to this project are documented in this file.
 This project adheres to `Semantic Versioning <http://semver.org/>`_.
 
 
-===================
-28.2.1 - 2021-07-13
-===================
+==========
+Unreleased
+==========
 
 Added
 -----
 - Add `compare_models_and_csv` management script to check if all
   `ReferencedPath`s point to a valid file in the aws database
+
+
+===================
+28.2.1 - 2021-07-13
+===================
 
 Fixed
 -----
