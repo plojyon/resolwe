@@ -220,13 +220,10 @@ def map_subpath_locations(file):
         current_subpath_linecount += 1
         total_linecount += 1
 
-    if last_subpath == -1:
-        # empty CSV file
-        file.length = 0
-        return {}
+    if last_subpath != -1:
+        mapping[last_subpath]["linecount"] = current_subpath_linecount
+        mapping[last_subpath]["end"] = file.size
 
-    mapping[last_subpath]["linecount"] = current_subpath_linecount
-    mapping[last_subpath]["end"] = file.size
     file.length = total_linecount  # set the line count for further convenience
     return mapping
 
