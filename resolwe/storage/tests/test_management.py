@@ -14,7 +14,7 @@ from resolwe.storage.management.commands.compare_models_and_csv import (
     get_filename,
     get_subpath,
     map_subpath_locations,
-    parseline,
+    parse_line,
 )
 from resolwe.storage.models import FileStorage, ReferencedPath, StorageLocation
 
@@ -443,13 +443,13 @@ class CompareModelsTestCase(TestCase):
         self.assertIn("3 files do not match the hash", self.output)
         self.assertNotIn("Numbers don't add up.", self.output)
 
-    def test_parseline(self):
+    def test_parse_line(self):
         line = (
             '"bucket","subpath/filename.extension",'
             '"filesize","hashhashhash","STANDARD",""'
         )
         self.assertEqual(
-            parseline(line),
+            parse_line(line),
             [
                 "bucket",
                 "subpath/filename.extension",

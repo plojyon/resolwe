@@ -40,39 +40,38 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Command handle."""
-        CSV = FileIterator(options["csv_path"][0])
-        models = Data.objects.all().order_by("location__pk")
+        csv = FileIterator(options["csv_path"][0])
+        datas = Data.objects.all().order_by("location__pk")
         counter = {
             "match": 0,
             "csv_only": 0,
             "models_only": 0,
             "hash_mismatch": 0,
         }
-        subpath_map = map_subpath_locations(CSV)
+        subpath_map = map_subpath_locations(csv)
 
-        for data in models.iterator():
+        for data in datas.iterator():
             subpath = data.location.subpath
             urls = data.location.files
             urls = urls.exclude(Q(path__endswith="/"))  # exclude directories
-            urls = urls.order_by("path")
-            URLS = ModelIterator(urls)
+            urls = ModelIterator(urls.order_by("path"))
 
             if subpath not in subpath_map:
-                filecount = URLS.count
+                filecount = urls.count
                 self.stdout.write(f"MODEL-ONLY {subpath}/* ({filecount} files)")
                 counter["models_only"] += filecount
                 continue
             else:
                 subpath_map[subpath]["visited"] = True
 
-            CSV.restrict(
+            csv.restrict(
                 start=subpath_map[subpath]["start"],
                 end=subpath_map[subpath]["end"],
             )
-            CSV.seek_relative(0)
+            csv.seek_relative(0)
 
-            next_in_models, model_hash = URLS.next()
-            next_in_csv, csv_hash = CSV.next()
+            next_in_models, model_hash = urls.next()
+            next_in_csv, csv_hash = csv.next()
             while next_in_csv and next_in_models:
                 if next_in_models == next_in_csv:
                     # entries match, verify checksum
@@ -84,33 +83,33 @@ class Command(BaseCommand):
                         self.stdout.write(f"HASH {fullpath} {hashes}")
                         counter["hash_mismatch"] += 1
                     # advance both
-                    next_in_models, model_hash = URLS.next()
-                    next_in_csv, csv_hash = CSV.next()
-                elif next_in_models < next_in_csv or not CSV.has_next():
+                    next_in_models, model_hash = urls.next()
+                    next_in_csv, csv_hash = csv.next()
+                elif next_in_models < next_in_csv or not csv.has_next():
                     # entries are missing in CSV
                     # (models are alphabetically *behind*)
                     fullpath = subpath + "/" + next_in_models
                     self.stdout.write(f"MODEL-ONLY {fullpath}")
                     counter["models_only"] += 1
-                    next_in_models, model_hash = URLS.next()  # advance models
-                elif next_in_models > next_in_csv or not URLS.has_next():
+                    next_in_models, model_hash = urls.next()  # advance models
+                elif next_in_models > next_in_csv or not urls.has_next():
                     # entries are missing in models
                     # (models are alphabetically *ahead*)
                     fullpath = subpath + "/" + next_in_csv
                     self.stdout.write(f"CSV-ONLY {fullpath}")
                     counter["csv_only"] += 1
-                    next_in_csv, csv_hash = CSV.next()  # advance CSV
+                    next_in_csv, csv_hash = csv.next()  # advance CSV
 
             # either (or both) of the iterators is finished,
             # now we need to exhaust the other
             while next_in_csv:
                 self.stdout.write(f"CSV-ONLY {subpath}/{next_in_csv}")
                 counter["csv_only"] += 1
-                next_in_csv, csv_hash = CSV.next()
+                next_in_csv, csv_hash = csv.next()
             while next_in_models:
                 self.stdout.write(f"MODEL-ONLY {subpath}/{next_in_models}")
                 counter["models_only"] += 1
-                next_in_models, model_hash = URLS.next()
+                next_in_models, model_hash = urls.next()
 
         # list all subpaths from CSV that we haven't visited
         # while traversing models' data
@@ -135,7 +134,7 @@ class Command(BaseCommand):
         ReferencedPath_count = ReferencedPath.objects.exclude(
             Q(path__endswith="/")
         ).count()
-        self.stdout.write(f"CSV length = {CSV.length}")
+        self.stdout.write(f"CSV length = {csv.length}")
         self.stdout.write(f"ReferencedPath object count = {ReferencedPath_count}")
 
         matches = counter["hash_mismatch"] + counter["match"]
@@ -143,7 +142,7 @@ class Command(BaseCommand):
         models_records = matches + counter["models_only"]
         # this should never happen, but it's better to check,
         # just because it's so easy to do
-        if csv_records != CSV.length:
+        if csv_records != csv.length:
             self.stdout.write(
                 "Numbers don't add up."
                 " OK + csv_only + hash_mismatch != CSV.line_count."
@@ -156,7 +155,7 @@ class Command(BaseCommand):
             )
 
 
-def parseline(line):
+def parse_line(line):
     """Parse a line of CSV data into an array of values."""
     reader = csv.reader([line])
     for i in reader:
@@ -169,7 +168,7 @@ def get_filename(line):
     If the file has no subpath, the file key will be treated as a subpath name,
     and get_filename will return an empty string.
     """
-    key = parseline(line)[1]  # full file key
+    key = parse_line(line)[1]  # full file key
 
     # strip subpath
     splits = key.split("/")
@@ -183,7 +182,7 @@ def get_subpath(line):
     If the file has no subpath, the file key will be treated as a subpath name,
     and get_filename will return an empty string.
     """
-    columns = parseline(line)
+    columns = parse_line(line)
     s3key = columns[1]
     subpath = s3key.split("/")[0]
     return subpath
@@ -191,7 +190,7 @@ def get_subpath(line):
 
 def get_etag(line):
     """Extract the etag of the file from a line of CSV data."""
-    return parseline(line)[3]
+    return parse_line(line)[3]
 
 
 def map_subpath_locations(file):
