@@ -12,8 +12,8 @@ Unreleased
 
 Added
 -----
-- Add `compare_models_and_csv` management script to check if all
-  `ReferencedPath`s point to a valid file in the aws database
+- Add ``compare_models_and_csv`` management script to check if all
+  ``ReferencedPath``s point to a valid file in the aws database
 
 
 ===================
