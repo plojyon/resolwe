@@ -1,4 +1,5 @@
 import logging
+import os
 from io import StringIO
 
 from django.core.management import call_command
@@ -64,9 +65,9 @@ class CompareModelsTestCase(TestCase):
         self.make_file("k.json", self.sl123)
         self.make_file("l.json", self.sl123)
 
-        first_half = "../resolwe/storage/tests"
-        second_half = "/files/compare_models_and_csv.csv"
-        self.csv_filename = first_half + second_half  # 79ch line length limit
+        self.csv_filename = os.path.abspath(
+            os.path.dirname(__file__) + "/files/compare_models_and_csv.csv"
+        )
 
         # redirect logger to a stream
         self.output = StringIO()
