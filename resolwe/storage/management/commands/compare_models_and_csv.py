@@ -13,6 +13,7 @@ import csv
 import logging
 from collections import namedtuple
 import os
+from pathlib import Path
 
 from django.core.management.base import BaseCommand
 from django.db.models import Q
@@ -175,10 +176,14 @@ def parse_line(line):
     file_key = fields[1]
     hash = fields[3]
 
-    splits = file_key.split("/")
-    subpath = splits[0]
-    splits.pop(0)
-    filename = "/".join(splits)
+    parts = [part for part in Path(file_key).parts]
+    subpath = str(parts.pop(0))
+    filename = str(Path("").joinpath(*parts))
+
+    if subpath == ".":
+        subpath = ""
+    if filename == ".":
+        filename = ""
 
     return Line(subpath=subpath, filename=filename, hash=hash)
 
