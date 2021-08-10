@@ -10,9 +10,8 @@ Check if all file references in django models (ReferencedPaths) correspond 1:1
 to existing files in the remote database (using a CSV inventory file).
 """
 import csv
-import logging
-from collections import namedtuple
 import os
+from collections import namedtuple
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -137,7 +136,7 @@ class Command(BaseCommand):
             Q(path__endswith="/")
         ).count()
         self.stdout.write(f"CSV length = {csv.length}")
-        self.stdout.write(f"ReferencedPath object count = {ReferencedPath_count}")
+        self.stdout.write(f"ReferencedPath count = {ReferencedPath_count}")
 
         matches = counter["hash_mismatch"] + counter["match"]
         csv_records = matches + counter["csv_only"]
