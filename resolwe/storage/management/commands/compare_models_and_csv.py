@@ -1,9 +1,13 @@
 """.. Ignore pydocstyle D400.
 
-======================
-Compare models and CSV
-======================
+===============================
+Command: compare_models_and_csv
+===============================
 
+Usage: ./manage.py compare_models_and_csv <path_to_csv>
+
+Check if all file references in django models (ReferencedPaths) correspond 1:1
+to existing files in the remote database (using a CSV inventory file).
 """
 import csv
 import logging
@@ -19,7 +23,7 @@ from resolwe.storage.models import ReferencedPath
 class Command(BaseCommand):
     """Compare Django's Data records with a CSV file and log differences.
 
-    expected CSV format:
+    Expected CSV format:
         bucket_id, file_key, file_size, file_hash
     """
 
@@ -193,8 +197,7 @@ def get_etag(line):
 def map_subpath_locations(file):
     """Map subpaths to their locations in a CSV file.
 
-    Also count the number of lines for
-    each subpath and the file as a whole.
+    Also count the number of lines for each subpath and the file as a whole.
 
     Sample output:
     ```
@@ -255,7 +258,7 @@ class FileIterator:
         self.restrictions = {"start": 0, "end": self.size}
 
     def __del__(self):
-        """Destruct the object. Close the file."""
+        """Close the file."""
         self.file.close()
 
     def tell(self):
@@ -309,8 +312,8 @@ class FileIterator:
 class ModelIterator:
     """An iterator for traversing a QuerySet.
 
-    This is a wrapper with similar methods as the
-    FileIterator, to provide nice symmetric-looking code.
+    This is a wrapper with similar methods as the FileIterator, to provide
+    nice symmetric-looking code.
     """
 
     def __init__(self, urls):
