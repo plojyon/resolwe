@@ -11,6 +11,7 @@ to existing files in the remote database (using a CSV inventory file).
 """
 import csv
 import logging
+from collections import namedtuple
 import os
 
 from django.core.management.base import BaseCommand
@@ -156,41 +157,30 @@ class Command(BaseCommand):
 
 
 def parse_line(line):
-    """Parse a line of CSV data into an array of values."""
+    """Parse a line of CSV data into an array of values.
+
+    If the file key has no subpath, the file name will be treated as a subpath
+    name, and the filename field will be an empty string.
+
+    :param line: A single line of CSV data
+    :returns: namedtuple('Line', ['subpath', 'filename', 'hash'])
+    """
+    Line = namedtuple("Line", ["subpath", "filename", "hash"])
+
     reader = csv.reader([line])
+    # this loop will only run once (because we supplied one line)
     for i in reader:
-        return i  # reader will return only one line anyway
+        fields = i
 
+    file_key = fields[1]
+    hash = fields[3]
 
-def get_filename(line):
-    """Extract the name of the file from a line of CSV data.
-
-    If the file has no subpath, the file key will be treated as a subpath name,
-    and get_filename will return an empty string.
-    """
-    key = parse_line(line)[1]  # full file key
-
-    # strip subpath
-    splits = key.split("/")
+    splits = file_key.split("/")
+    subpath = splits[0]
     splits.pop(0)
-    return "/".join(splits)
+    filename = "/".join(splits)
 
-
-def get_subpath(line):
-    """Extract the subpath of the file from a line of CSV data.
-
-    If the file has no subpath, the file key will be treated as a subpath name,
-    and get_filename will return an empty string.
-    """
-    columns = parse_line(line)
-    s3key = columns[1]
-    subpath = s3key.split("/")[0]
-    return subpath
-
-
-def get_etag(line):
-    """Extract the etag of the file from a line of CSV data."""
-    return parse_line(line)[3]
+    return Line(subpath=subpath, filename=filename, hash=hash)
 
 
 def map_subpath_locations(file):
@@ -218,7 +208,7 @@ def map_subpath_locations(file):
     file.seek(0)
     total_linecount = 0
     while file.has_next():
-        subpath = get_subpath(file.readline())
+        subpath = parse_line(file.readline()).subpath
         if subpath != last_subpath:
             mapping[subpath] = {}
             mapping[subpath]["start"] = file.last_position
@@ -291,8 +281,8 @@ class FileIterator:
         if not self.has_next():
             return "", ""
 
-        line = self.readline()
-        return get_filename(line), get_etag(line)
+        line = parse_line(self.readline())
+        return line.filename, line.hash
 
     def has_next(self):
         """Check if the file reached the end of its restriction interval."""

@@ -10,9 +10,6 @@ from resolwe.flow.models import Data, Process
 from resolwe.storage.management.commands.compare_models_and_csv import (
     FileIterator,
     ModelIterator,
-    get_etag,
-    get_filename,
-    get_subpath,
     map_subpath_locations,
     parse_line,
 )
@@ -448,53 +445,17 @@ class CompareModelsTestCase(TestCase):
             '"bucket","subpath/filename.extension",'
             '"filesize","hashhashhash","STANDARD",""'
         )
-        self.assertEqual(
-            parse_line(line),
-            [
-                "bucket",
-                "subpath/filename.extension",
-                "filesize",
-                "hashhashhash",
-                "STANDARD",
-                "",
-            ],
-        )
+        line = parse_line(line)
+        self.assertEqual(line.filename, "filename.extension")
+        self.assertEqual(line.hash, "hashhashhash")
+        self.assertEqual(line.subpath, "subpath")
 
-    def test_get_filename(self):
-        line = (
-            '"bucket","subpath/file/name.extension",'
-            '"filesize","hashhashhash","STANDARD",""'
-        )
-        self.assertEqual(get_filename(line), "file/name.extension")
-
-    def test_get_filename_single_path(self):
-        line = (
-            '"bucket","subpath/filename.extension",'
-            '"filesize","hashhashhash","STANDARD",""'
-        )
-        self.assertEqual(get_filename(line), "filename.extension")
-
-    def test_get_filename_no_subpath(self):
+    def test_parse_line_no_subpath(self):
         line = '"bucket","README.md","filesize","hashhashhash","STANDARD",""'
-        self.assertEqual(get_filename(line), "")
-
-    def test_get_subpath(self):
-        line = (
-            '"bucket","subpath/filename.extension",'
-            '"filesize","hashhashhash","STANDARD",""'
-        )
-        self.assertEqual(get_subpath(line), "subpath")
-
-    def test_get_subpath_no_subpath(self):
-        line = '"bucket","README.md","filesize","hashhashhash","STANDARD",""'
-        self.assertEqual(get_subpath(line), "README.md")
-
-    def test_get_etag(self):
-        line = (
-            '"bucket","subpath/filename.extension",'
-            '"filesize","hashhashhash","STANDARD",""'
-        )
-        self.assertEqual(get_etag(line), "hashhashhash")
+        line = parse_line(line)
+        self.assertEqual(line.filename, "")
+        self.assertEqual(line.hash, "hashhashhash")
+        self.assertEqual(line.subpath, "README.md")
 
     def test_map_subpath_locations(self):
         fi = FileIterator(self.csv_filename)
@@ -505,6 +466,13 @@ class CompareModelsTestCase(TestCase):
         }
         self.assertEquals(received, expected)
         self.assertEquals(fi.length, 11)
+
+    def test_map_subpath_locations_empty_csv(self):
+        fi = FileIterator(os.devnull)
+        received = map_subpath_locations(fi)
+        expected = {}
+        self.assertEquals(received, expected)
+        self.assertEquals(fi.length, 0)
 
     def test_fileiterator_tell_seek(self):
         fi = FileIterator(self.csv_filename)
