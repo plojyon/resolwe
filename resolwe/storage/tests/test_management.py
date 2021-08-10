@@ -181,7 +181,7 @@ class CompareModelsTestCase(TestCase):
         self.assertNotIn("Numbers don't add up.", self.output)
 
     def test_empty_csv(self):
-        call_command("compare_models_and_csv", "/dev/null")
+        call_command("compare_models_and_csv", os.devnull)
         self.output = self.output.getvalue()
         self.assertIn("MODEL-ONLY 100/* (6 files)", self.output)
         self.assertIn("MODEL-ONLY 123/* (5 files)", self.output)
