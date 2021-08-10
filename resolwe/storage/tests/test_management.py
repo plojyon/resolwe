@@ -69,19 +69,15 @@ class CompareModelsTestCase(TestCase):
             os.path.dirname(__file__) + "/files/compare_models_and_csv.csv"
         )
 
-        # redirect logger to a stream
-        self.output = StringIO()
-        logger = logging.getLogger(
-            "resolwe.storage.management.commands.compare_models_and_csv"
-        )
-        handler = logging.StreamHandler(self.output)
-        formatter = logging.Formatter("%(levelname)s: %(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        self.out = StringIO()
 
     def test_complete_match(self):
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertNotIn("CSV-ONLY", self.output)
         self.assertNotIn("MODEL-ONLY", self.output)
         self.assertIn("11 files OK", self.output)
@@ -102,8 +98,12 @@ class CompareModelsTestCase(TestCase):
         self.make_file("h.json", self.sl123)
         self.make_file("i.json", self.sl123)
 
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("CSV-ONLY 100/names/000.json", self.output)
         self.assertIn("CSV-ONLY 100/names/001.json", self.output)
         self.assertIn("CSV-ONLY 100/names/002.json", self.output)
@@ -132,8 +132,12 @@ class CompareModelsTestCase(TestCase):
         self.sl100.files.all().delete()
         self.d100.delete()
 
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("CSV-ONLY 100/* (6 files)", self.output)
         self.assertNotIn("MODEL-ONLY", self.output)
         self.assertIn("5 files OK, 6 files in CSV only", self.output)
@@ -157,8 +161,12 @@ class CompareModelsTestCase(TestCase):
         self.make_file("y.json", self.sl200)
         self.make_file("z.json", self.sl200)
 
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 200/* (3 files)", self.output)
         self.assertNotIn("CSV-ONLY", self.output)
         self.assertIn("11 files OK, 3 files in models only", self.output)
@@ -171,8 +179,12 @@ class CompareModelsTestCase(TestCase):
         self.sl123.files.all().delete()
         self.d123.delete()
 
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("CSV-ONLY 100/* (6 files)", self.output)
         self.assertIn("CSV-ONLY 123/* (5 files)", self.output)
         self.assertNotIn("MODEL-ONLY", self.output)
@@ -181,8 +193,8 @@ class CompareModelsTestCase(TestCase):
         self.assertNotIn("Numbers don't add up.", self.output)
 
     def test_empty_csv(self):
-        call_command("compare_models_and_csv", os.devnull)
-        self.output = self.output.getvalue()
+        call_command("compare_models_and_csv", os.devnull, stdout=self.out)
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 100/* (6 files)", self.output)
         self.assertIn("MODEL-ONLY 123/* (5 files)", self.output)
         self.assertNotIn("CSV-ONLY", self.output)
@@ -193,8 +205,12 @@ class CompareModelsTestCase(TestCase):
     def test_missing_first_file_in_models(self):
         ReferencedPath.objects.get(path="names/000.json").delete()
         ReferencedPath.objects.get(path="names/001.json").delete()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("CSV-ONLY 100/names/000.json", self.output)
         self.assertIn("CSV-ONLY 100/names/001.json", self.output)
         self.assertNotIn("MODEL-ONLY", self.output)
@@ -205,8 +221,12 @@ class CompareModelsTestCase(TestCase):
     def test_missing_last_file_in_models(self):
         ReferencedPath.objects.get(path="names/004.json").delete()
         ReferencedPath.objects.get(path="names/005.json").delete()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("CSV-ONLY 100/names/004.json", self.output)
         self.assertIn("CSV-ONLY 100/names/005.json", self.output)
         self.assertNotIn("MODEL-ONLY", self.output)
@@ -218,8 +238,12 @@ class CompareModelsTestCase(TestCase):
         self.make_file("a.json", self.sl123)
         self.make_file("b.json", self.sl123)
         self.make_file("c.json", self.sl123)
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 123/a.json", self.output)
         self.assertIn("MODEL-ONLY 123/b.json", self.output)
         self.assertIn("MODEL-ONLY 123/c.json", self.output)
@@ -231,8 +255,12 @@ class CompareModelsTestCase(TestCase):
     def test_missing_last_file_in_csv(self):
         self.make_file("names/006.json", self.sl100)
         self.make_file("m.json", self.sl123)
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 100/names/006.json", self.output)
         self.assertIn("MODEL-ONLY 123/m.json", self.output)
         self.assertNotIn("CSV-ONLY", self.output)
@@ -243,8 +271,12 @@ class CompareModelsTestCase(TestCase):
     def test_missing_middle_file_in_models(self):
         ReferencedPath.objects.get(path="names/002.json").delete()
         ReferencedPath.objects.get(path="names/003.json").delete()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("CSV-ONLY 100/names/002.json", self.output)
         self.assertIn("CSV-ONLY 100/names/003.json", self.output)
         self.assertNotIn("MODEL-ONLY", self.output)
@@ -257,8 +289,12 @@ class CompareModelsTestCase(TestCase):
         self.make_file("g.json", self.sl123)
         self.make_file("h.json", self.sl123)
         self.make_file("i.json", self.sl123)
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 123/e.json", self.output)
         self.assertIn("MODEL-ONLY 123/g.json", self.output)
         self.assertIn("MODEL-ONLY 123/h.json", self.output)
@@ -285,8 +321,12 @@ class CompareModelsTestCase(TestCase):
         ReferencedPath.objects.get(path="names/002.json").delete()
         ReferencedPath.objects.get(path="names/003.json").delete()
         ReferencedPath.objects.get(path="names/004.json").delete()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 100/names/0025.json", self.output)
         self.assertIn("MODEL-ONLY 100/names/0035.json", self.output)
         self.assertIn("CSV-ONLY 100/names/001.json", self.output)
@@ -307,8 +347,12 @@ class CompareModelsTestCase(TestCase):
         ReferencedPath.objects.get(path="names/003.json").delete()
         ReferencedPath.objects.get(path="names/004.json").delete()
         ReferencedPath.objects.get(path="names/005.json").delete()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 100/names/0025.json", self.output)
         self.assertIn("MODEL-ONLY 100/names/0035.json", self.output)
         self.assertIn("CSV-ONLY 100/names/001.json", self.output)
@@ -330,8 +374,12 @@ class CompareModelsTestCase(TestCase):
         ReferencedPath.objects.get(path="names/002.json").delete()
         ReferencedPath.objects.get(path="names/003.json").delete()
         ReferencedPath.objects.get(path="names/004.json").delete()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 100/names/0025.json", self.output)
         self.assertIn("MODEL-ONLY 100/names/0035.json", self.output)
         self.assertIn("CSV-ONLY 100/names/000.json", self.output)
@@ -352,8 +400,12 @@ class CompareModelsTestCase(TestCase):
         ReferencedPath.objects.get(path="names/003.json").delete()
         self.make_file("names/0025.json", self.sl100)
         self.make_file("names/0035.json", self.sl100)
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         self.assertIn("MODEL-ONLY 100/names/0025.json", self.output)
         self.assertIn("MODEL-ONLY 100/names/0035.json", self.output)
         self.assertIn("CSV-ONLY 100/names/000.json", self.output)
@@ -375,8 +427,12 @@ class CompareModelsTestCase(TestCase):
         rpd = ReferencedPath.objects.get(path="d.json")
         rpd.awss3etag = "not hash"
         rpd.save()
-        call_command("compare_models_and_csv", self.csv_filename)
-        self.output = self.output.getvalue()
+        call_command(
+            "compare_models_and_csv",
+            self.csv_filename,
+            stdout=self.out,
+        )
+        self.output = self.out.getvalue()
         longstring = "HASH 100/names/003.json hashhash != hashhashhash"
         self.assertIn(longstring, self.output)  # longstr; 79ch line len limit
         self.assertIn("HASH 100/names/005.json  != hashhashhash", self.output)

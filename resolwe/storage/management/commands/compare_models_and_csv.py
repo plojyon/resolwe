@@ -15,8 +15,6 @@ from django.db.models import Q
 from resolwe.flow.models import Data
 from resolwe.storage.models import ReferencedPath
 
-logger = logging.getLogger(__name__)
-
 
 class Command(BaseCommand):
     """Compare Django's Data records with a CSV file and log differences.
@@ -57,7 +55,7 @@ class Command(BaseCommand):
 
             if subpath not in subpath_map:
                 filecount = URLS.count
-                logger.warning(f"MODEL-ONLY {subpath}/* ({filecount} files)")
+                self.stdout.write(f"MODEL-ONLY {subpath}/* ({filecount} files)")
                 counter["models_only"] += filecount
                 continue
             else:
@@ -79,7 +77,7 @@ class Command(BaseCommand):
                     else:
                         fullpath = f"{subpath}/{next_in_models}"
                         hashes = f"{model_hash} != {csv_hash}"
-                        logger.warning(f"HASH {fullpath} {hashes}")
+                        self.stdout.write(f"HASH {fullpath} {hashes}")
                         counter["hash_mismatch"] += 1
                     # advance both
                     next_in_models, model_hash = URLS.next()
@@ -88,25 +86,25 @@ class Command(BaseCommand):
                     # entries are missing in CSV
                     # (models are alphabetically *behind*)
                     fullpath = subpath + "/" + next_in_models
-                    logger.warning(f"MODEL-ONLY {fullpath}")
+                    self.stdout.write(f"MODEL-ONLY {fullpath}")
                     counter["models_only"] += 1
                     next_in_models, model_hash = URLS.next()  # advance models
                 elif next_in_models > next_in_csv or not URLS.has_next():
                     # entries are missing in models
                     # (models are alphabetically *ahead*)
                     fullpath = subpath + "/" + next_in_csv
-                    logger.warning(f"CSV-ONLY {fullpath}")
+                    self.stdout.write(f"CSV-ONLY {fullpath}")
                     counter["csv_only"] += 1
                     next_in_csv, csv_hash = CSV.next()  # advance CSV
 
             # either (or both) of the iterators is finished,
             # now we need to exhaust the other
             while next_in_csv:
-                logger.warning(f"CSV-ONLY {subpath}/{next_in_csv}")
+                self.stdout.write(f"CSV-ONLY {subpath}/{next_in_csv}")
                 counter["csv_only"] += 1
                 next_in_csv, csv_hash = CSV.next()
             while next_in_models:
-                logger.warning(f"MODEL-ONLY {subpath}/{next_in_models}")
+                self.stdout.write(f"MODEL-ONLY {subpath}/{next_in_models}")
                 counter["models_only"] += 1
                 next_in_models, model_hash = URLS.next()
 
@@ -115,7 +113,7 @@ class Command(BaseCommand):
         for subpath in subpath_map:
             if "visited" not in subpath_map[subpath]:
                 filecount = subpath_map[subpath]["linecount"]
-                logger.warning(f"CSV-ONLY {subpath}/* ({filecount} files)")
+                self.stdout.write(f"CSV-ONLY {subpath}/* ({filecount} files)")
                 counter["csv_only"] += filecount
 
         # print an overview/summary
@@ -127,14 +125,14 @@ class Command(BaseCommand):
             out += f", {counter['models_only']} files in models only"
         if counter["hash_mismatch"] != 0:
             out += f", {counter['hash_mismatch']} files do not match the hash"
-        logger.info(out)
+        self.stdout.write(out)
 
         # double check the numbers just in case
         ReferencedPath_count = ReferencedPath.objects.exclude(
             Q(path__endswith="/")
         ).count()
-        logger.debug(f"CSV length = {CSV.length}")
-        logger.debug(f"ReferencedPath object count = {ReferencedPath_count}")
+        self.stdout.write(f"CSV length = {CSV.length}")
+        self.stdout.write(f"ReferencedPath object count = {ReferencedPath_count}")
 
         matches = counter["hash_mismatch"] + counter["match"]
         csv_records = matches + counter["csv_only"]
@@ -142,12 +140,12 @@ class Command(BaseCommand):
         # this should never happen, but it's better to check,
         # just because it's so easy to do
         if csv_records != CSV.length:
-            logger.debug(
+            self.stdout.write(
                 "Numbers don't add up."
                 " OK + csv_only + hash_mismatch != CSV.line_count."
             )
         if models_records != ReferencedPath_count:
-            logger.debug(
+            self.stdout.write(
                 "Numbers don't add up."
                 " OK + models_only + hash_mismatch != ReferencedPath_count."
                 " There are probably orphaned ReferencedPaths."
