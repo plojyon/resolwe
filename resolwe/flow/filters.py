@@ -297,7 +297,7 @@ class CollectionFilter(BaseCollectionFilter):
 class EntityFilter(BaseCollectionFilter):
     """Filter the Entity endpoint."""
 
-    # TODO: filter by associated relations (relation_id=42)
+    relation_id = filters.NumberFilter(field_name="relation__id")
 
     class Meta(BaseCollectionFilter.Meta):
         """Filter configuration."""

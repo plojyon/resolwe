@@ -7,7 +7,15 @@ from django.utils.timezone import get_current_timezone
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from resolwe.flow.models import Collection, Data, DescriptorSchema, Entity, Process
+from resolwe.flow.models import (
+    Collection,
+    Data,
+    DescriptorSchema,
+    Entity,
+    Process,
+    Relation,
+    RelationType,
+)
 from resolwe.flow.views import (
     CollectionViewSet,
     DataViewSet,
@@ -412,6 +420,12 @@ class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
             ),
         ]
 
+        cls.rel_type = RelationType.objects.create(name="series", ordered=True)
+        cls.relation1 = Relation.objects.create(
+            type=cls.rel_type, collection=cls.collection1, contributor=cls.contributor
+        )
+        cls.relation1.entities.set(cls.entities[:1])
+
         tzone = get_current_timezone()
         cls.entities[0].created = datetime.datetime(2016, 7, 30, 0, 59, tzinfo=tzone)
         cls.entities[0].save()
@@ -419,6 +433,8 @@ class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
         cls.entities[1].save()
         cls.entities[2].created = datetime.datetime(2016, 7, 30, 2, 59, tzinfo=tzone)
         cls.entities[2].save()
+
+        cls.relation1.save()
 
         cls.collection1.set_permission(Permission.OWNER, cls.admin)
         cls.collection1.set_permission(Permission.VIEW, cls.user)
@@ -621,6 +637,11 @@ class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
             {"text": "test entity", "ordering": "id"}, self.entities
         )
         self.assertEqual(result.data[0]["id"], self.entities[0].pk)
+
+    def test_filter_sample_count(self):
+        # TODO: write actual tests
+        self._check_filter({"relation_id": self.relation1.id}, self.entities[:1])
+        # self._check_filter({"sample_n__gt": 0}, [])
 
 
 class DataViewSetFiltersTest(BaseViewSetFiltersTest):
