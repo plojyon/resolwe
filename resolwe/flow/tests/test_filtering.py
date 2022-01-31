@@ -425,6 +425,7 @@ class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
             type=cls.rel_type, collection=cls.collection1, contributor=cls.contributor
         )
         cls.relation1.entities.set(cls.entities[:1])
+        cls.relation1.save()
 
         tzone = get_current_timezone()
         cls.entities[0].created = datetime.datetime(2016, 7, 30, 0, 59, tzinfo=tzone)
@@ -433,8 +434,6 @@ class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
         cls.entities[1].save()
         cls.entities[2].created = datetime.datetime(2016, 7, 30, 2, 59, tzinfo=tzone)
         cls.entities[2].save()
-
-        cls.relation1.save()
 
         cls.collection1.set_permission(Permission.OWNER, cls.admin)
         cls.collection1.set_permission(Permission.VIEW, cls.user)
@@ -766,6 +765,13 @@ class DataViewSetFiltersTest(BaseViewSetFiltersTest):
             ),
         ]
 
+        cls.rel_type = RelationType.objects.create(name="series", ordered=True)
+        cls.relation1 = Relation.objects.create(
+            type=cls.rel_type, collection=cls.collection1, contributor=cls.contributor
+        )
+        cls.relation1.entities.set([cls.entity1, cls.entity2])
+        cls.relation1.save()
+
         cls.data[0].created = datetime.datetime(2016, 7, 30, 0, 59, tzinfo=tzone)
         cls.data[0].save()
         cls.data[1].created = datetime.datetime(2016, 7, 30, 1, 59, tzinfo=tzone)
@@ -1035,6 +1041,13 @@ class DataViewSetFiltersTest(BaseViewSetFiltersTest):
             str(response.data["__all__"]),
             r"Unsupported parameter\(s\): foo. Please use a combination of: .*",
         )
+
+    def test_filter_sample_count(self):
+        # TODO: write actual tests
+        self._check_filter(
+            {"relation_id": self.relation1.id}, [self.entity1, self.entity2]
+        )
+        # self._check_filter({"sample_n__gt": 0}, [])
 
 
 class DescriptorSchemaViewSetFiltersTest(BaseViewSetFiltersTest):
