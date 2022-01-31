@@ -11,7 +11,7 @@ from versionfield import VersionField
 
 from django.contrib.auth import get_user_model
 from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import F, ForeignKey, Subquery
+from django.db.models import Count, F, ForeignKey, Subquery
 
 from rest_framework.filters import OrderingFilter as DrfOrderingFilter
 
@@ -269,14 +269,35 @@ class BaseCollectionFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
 class CollectionFilter(BaseCollectionFilter):
     """Filter the Collection endpoint."""
 
+    sample_n = filters.NumberFilter(method="count_samples", field_name="entity__count")
+    sample_n__gt = filters.NumberFilter(
+        method="count_samples", field_name="entity__count__gt"
+    )
+    sample_n__lt = filters.NumberFilter(
+        method="count_samples", field_name="entity__count__lt"
+    )
+    sample_n__gte = filters.NumberFilter(
+        method="count_samples", field_name="entity__count__gte"
+    )
+    sample_n__lte = filters.NumberFilter(
+        method="count_samples", field_name="entity__count__lte"
+    )
+
     class Meta(BaseCollectionFilter.Meta):
         """Filter configuration."""
 
         model = Collection
 
+    def count_samples(self, queryset, name, value):
+        """Filter by the number of associated samples (entities)."""
+
+        return queryset.annotate(Count("entity")).filter(**{name: value})
+
 
 class EntityFilter(BaseCollectionFilter):
     """Filter the Entity endpoint."""
+
+    # TODO: filter by associated relations (relation_id=42)
 
     class Meta(BaseCollectionFilter.Meta):
         """Filter configuration."""
@@ -327,6 +348,7 @@ class DataFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
     text = filters.CharFilter(field_name="search", method="filter_text")
     type = filters.CharFilter(field_name="process__type", lookup_expr="startswith")
     type__exact = filters.CharFilter(field_name="process__type", lookup_expr="exact")
+    # relation_id = filters. ... # TODO: (relation_id=42)
 
     class Meta(BaseResolweFilter.Meta):
         """Filter configuration."""

@@ -332,6 +332,11 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
         )
         self.assertEqual(result.data[0]["id"], self.collections[0].pk)
 
+    def test_filter_sample_count(self):
+        # TODO: write actual tests
+        self._check_filter({"sample_n": 0}, self.collections)
+        self._check_filter({"sample_n__gt": 0}, [])
+
 
 class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
     @classmethod
