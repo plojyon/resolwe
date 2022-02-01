@@ -342,8 +342,8 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
 
     def test_filter_sample_count(self):
         # TODO: write actual tests
-        self._check_filter({"sample_n": 0}, self.collections)
-        self._check_filter({"sample_n__gt": 0}, [])
+        self._check_filter({"sample_count": 0}, self.collections)
+        self._check_filter({"sample_count__gt": 0}, [])
 
 
 class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
@@ -640,7 +640,6 @@ class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
     def test_filter_sample_count(self):
         # TODO: write actual tests
         self._check_filter({"relation_id": self.relation1.id}, self.entities[:1])
-        # self._check_filter({"sample_n__gt": 0}, [])
 
 
 class DataViewSetFiltersTest(BaseViewSetFiltersTest):
@@ -1047,7 +1046,6 @@ class DataViewSetFiltersTest(BaseViewSetFiltersTest):
         self._check_filter(
             {"relation_id": self.relation1.id}, [self.entity1, self.entity2]
         )
-        # self._check_filter({"sample_n__gt": 0}, [])
 
 
 class DescriptorSchemaViewSetFiltersTest(BaseViewSetFiltersTest):

@@ -269,17 +269,19 @@ class BaseCollectionFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
 class CollectionFilter(BaseCollectionFilter):
     """Filter the Collection endpoint."""
 
-    sample_n = filters.NumberFilter(method="count_samples", field_name="entity__count")
-    sample_n__gt = filters.NumberFilter(
+    sample_count = filters.NumberFilter(
+        method="count_samples", field_name="entity__count"
+    )
+    sample_count__gt = filters.NumberFilter(
         method="count_samples", field_name="entity__count__gt"
     )
-    sample_n__lt = filters.NumberFilter(
+    sample_count__lt = filters.NumberFilter(
         method="count_samples", field_name="entity__count__lt"
     )
-    sample_n__gte = filters.NumberFilter(
+    sample_count__gte = filters.NumberFilter(
         method="count_samples", field_name="entity__count__gte"
     )
-    sample_n__lte = filters.NumberFilter(
+    sample_count__lte = filters.NumberFilter(
         method="count_samples", field_name="entity__count__lte"
     )
 
