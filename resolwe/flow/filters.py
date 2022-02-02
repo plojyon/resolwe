@@ -350,7 +350,9 @@ class DataFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
     text = filters.CharFilter(field_name="search", method="filter_text")
     type = filters.CharFilter(field_name="process__type", lookup_expr="startswith")
     type__exact = filters.CharFilter(field_name="process__type", lookup_expr="exact")
-    relation_id = filters.NumberFilter(field_name="entity__relation__id")
+    relation_id = filters.NumberFilter(
+        field_name="entity__relationpartition__relation_id"
+    )
 
     class Meta(BaseResolweFilter.Meta):
         """Filter configuration."""

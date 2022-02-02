@@ -1075,9 +1075,9 @@ class DataViewSetFiltersTest(BaseViewSetFiltersTest):
 
     def test_filter_by_relation(self):
         self._check_filter(
-            {"relation_id": self.relation1.id}, [self.entity1, self.entity2]
+            {"relation_id": self.relation1.id}, [self.data[0], self.data[1]]
         )
-        self._check_filter({"relation_id": self.relation2.id}, [self.entity2])
+        self._check_filter({"relation_id": self.relation2.id}, [self.data[1]])
         self._check_filter({"relation_id": 42}, [])
 
 
