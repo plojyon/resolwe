@@ -284,6 +284,7 @@ class CollectionFilter(BaseCollectionFilter):
     sample_count__lte = filters.NumberFilter(
         method="count_samples", field_name="entity__count__lte"
     )
+    permission = filters.CharFilter(method="filter_for_user")
 
     class Meta(BaseCollectionFilter.Meta):
         """Filter configuration."""

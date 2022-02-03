@@ -255,6 +255,14 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
         self._check_filter(
             {"permission": "edit"}, [self.collections[2]], user=self.user
         )
+        self._check_filter(
+            {"permission": "view"},
+            [self.collections[0], self.collections[1], self.collections[2]],
+            user=self.user,
+        )
+        self._check_filter(
+            {"permission": "owner"}, [self.collections[2]], user=self.user
+        )
 
     def test_filter_created(self):
         self._check_filter({"created": "2016-07-30T00:59:00"}, self.collections[:1])
