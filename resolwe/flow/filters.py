@@ -163,6 +163,10 @@ class UserFilterMixin:
         user = self.request.user
         return queryset.filter_for_user(user, Permission.from_name(value))
 
+    def filter_for_group(self, queryset, name, value):
+        """Filter queryset by group."""
+        return queryset.filter(permission_group__permissions__group=value)
+
 
 class TagsFilter(filters.BaseCSVFilter, filters.CharFilter):
     """Filter for tags."""
@@ -284,6 +288,9 @@ class CollectionFilter(BaseCollectionFilter):
     sample_count__lte = filters.NumberFilter(
         method="count_samples", field_name="entity__count__lte"
     )
+    shared_with_me = filters.BooleanFilter()
+    explicitly_shared_with_me = filters.BooleanFilter()
+    group = filters.CharFilter(method="filter_for_group")
     permission = filters.CharFilter(method="filter_for_user")
 
     class Meta(BaseCollectionFilter.Meta):
@@ -347,6 +354,7 @@ class DataFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
     owners = filters.CharFilter(method="filter_owners")
     owners_name = filters.CharFilter(method="filter_owners_name")
     permission = filters.CharFilter(method="filter_for_user")
+    group = filters.CharFilter(method="filter_for_group")
     tags = TagsFilter()
     text = filters.CharFilter(field_name="search", method="filter_text")
     type = filters.CharFilter(field_name="process__type", lookup_expr="startswith")

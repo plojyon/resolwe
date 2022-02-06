@@ -2,6 +2,7 @@
 import datetime
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.utils.timezone import get_current_timezone
 
 from rest_framework import status
@@ -23,8 +24,8 @@ from resolwe.flow.views import (
     EntityViewSet,
     ProcessViewSet,
 )
-from resolwe.permissions.models import Permission
-from resolwe.test import TestCase
+from resolwe.permissions.models import Permission, PermissionGroup, PermissionModel
+from resolwe.test import ResolweAPITestCase, TestCase
 
 factory = APIRequestFactory()
 
@@ -109,6 +110,17 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
             ],
         )
 
+        cls.group = Group.objects.create(name="Test group")
+        cls.perm_group = PermissionGroup.objects.create()
+        cls.perm = PermissionModel.objects.create(
+            group=cls.group,
+            value=Permission.OWNER,
+            permission_group=cls.perm_group,
+        )
+        cls.group.save()
+        cls.perm_group.save()
+        cls.perm.save()
+
         cls.collections = [
             Collection.objects.create(
                 name="Test collection 0",
@@ -138,20 +150,21 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
                 contributor=cls.user,
                 description="User's description",
                 tags=["second-tag"],
+                permission_group=cls.perm_group,
             ),
         ]
 
         cls.entity1 = Entity.objects.create(
             contributor=cls.contributor, collection=cls.collections[1]
         )
-        cls.entity1.save()
         cls.entity2 = Entity.objects.create(
             contributor=cls.contributor, collection=cls.collections[2]
         )
-        cls.entity2.save()
         cls.entity3 = Entity.objects.create(
             contributor=cls.contributor, collection=cls.collections[2]
         )
+        cls.entity1.save()
+        cls.entity2.save()
         cls.entity3.save()
 
         tzone = get_current_timezone()
@@ -362,7 +375,6 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
         self.assertEqual(result.data[0]["id"], self.collections[0].pk)
 
     def test_filter_sample_count(self):
-        # TODO: write actual tests
         self._check_filter({"sample_count": 0}, [self.collections[0]])
         self._check_filter({"sample_count": 2}, [self.collections[2]])
         self._check_filter({"sample_count__gt": 1}, [self.collections[2]])
@@ -373,6 +385,19 @@ class CollectionViewSetFiltersTest(BaseViewSetFiltersTest):
         self._check_filter(
             {"sample_count__lte": 1}, [self.collections[0], self.collections[1]]
         )
+
+    def test_filter_group(self):
+        self._check_filter({"group": self.group.pk}, [self.collections[2]])
+        self._check_filter({"group": 0}, [])
+        self._check_filter({"group": 10000}, [])
+
+    # def test_filter_view_edit_own(self):
+    #     # TODO: write actual tests
+    #     self._check_filter({"group": 0}, [])
+    #
+    # def test_filter_group(self):
+    #     # TODO: write actual tests
+    #     self._check_filter({"group": 0}, [])
 
 
 class EntityViewSetFiltersTest(BaseViewSetFiltersTest):
