@@ -11,7 +11,7 @@ from versionfield import VersionField
 
 from django.contrib.auth import get_user_model
 from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import Count, F, ForeignKey, Subquery
+from django.db.models import Count, F, ForeignKey, Q, Subquery
 
 from rest_framework.filters import OrderingFilter as DrfOrderingFilter
 
@@ -167,6 +167,18 @@ class UserFilterMixin:
         """Filter queryset by group."""
         return queryset.filter(permission_group__permissions__group=value)
 
+    def filter_private(self, queryset, name, value):
+        """Return only elements that are not public (explicitly shared with me)."""
+
+        public_user = get_user_model().objects.get(username="public")
+        public_filter = Q(permission_group__permissions__user=public_user)
+
+        # if filter value is False, return only public elements
+        if value:
+            return queryset.filter(~public_filter)
+        else:
+            return queryset.filter(public_filter)
+
 
 class TagsFilter(filters.BaseCSVFilter, filters.CharFilter):
     """Filter for tags."""
@@ -254,6 +266,8 @@ class BaseCollectionFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
     contributor_name = filters.CharFilter(method="filter_contributor_name")
     owners = filters.CharFilter(method="filter_owners")
     owners_name = filters.CharFilter(method="filter_owners_name")
+    shared_with_me = filters.BooleanFilter(method="filter_private")
+    group = filters.CharFilter(method="filter_for_group")
     permission = filters.CharFilter(method="filter_for_user")
     tags = TagsFilter()
     text = filters.CharFilter(field_name="search", method="filter_text")
@@ -288,10 +302,6 @@ class CollectionFilter(BaseCollectionFilter):
     sample_count__lte = filters.NumberFilter(
         method="count_samples", field_name="entity__count__lte"
     )
-    shared_with_me = filters.BooleanFilter()
-    explicitly_shared_with_me = filters.BooleanFilter()
-    group = filters.CharFilter(method="filter_for_group")
-    permission = filters.CharFilter(method="filter_for_user")
 
     class Meta(BaseCollectionFilter.Meta):
         """Filter configuration."""
@@ -353,8 +363,6 @@ class DataFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
     contributor_name = filters.CharFilter(method="filter_contributor_name")
     owners = filters.CharFilter(method="filter_owners")
     owners_name = filters.CharFilter(method="filter_owners_name")
-    permission = filters.CharFilter(method="filter_for_user")
-    group = filters.CharFilter(method="filter_for_group")
     tags = TagsFilter()
     text = filters.CharFilter(field_name="search", method="filter_text")
     type = filters.CharFilter(field_name="process__type", lookup_expr="startswith")
@@ -362,6 +370,9 @@ class DataFilter(TextFilterMixin, UserFilterMixin, BaseResolweFilter):
     relation_id = filters.NumberFilter(
         field_name="entity__relationpartition__relation_id"
     )
+    shared_with_me = filters.BooleanFilter(method="filter_private")
+    group = filters.CharFilter(method="filter_for_group")
+    permission = filters.CharFilter(method="filter_for_user")
 
     class Meta(BaseResolweFilter.Meta):
         """Filter configuration."""
