@@ -72,10 +72,6 @@ def model_post_save(sender, instance, created=False, **kwargs):
     :param created: True if a new row was created
     """
 
-    if sender._meta.app_label == "rest_framework_reactive":
-        # Ignore own events.
-        return
-
     def notify():
         table = sender._meta.db_table
         if created:
@@ -93,10 +89,6 @@ def model_post_delete(sender, instance, **kwargs):
     :param sender: Model class that was deleted
     :param instance: The actual instance that was removed
     """
-
-    if sender._meta.app_label == "rest_framework_reactive":
-        # Ignore own events.
-        return
 
     def notify():
         table = sender._meta.db_table

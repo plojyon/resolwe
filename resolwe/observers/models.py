@@ -18,7 +18,7 @@ class Observer(models.Model):
     # table of the observed resource
     table = models.CharField(max_length=100)
     # primary key of the observed resource (null if watching the whole table)
-    resource = models.IntegerField(null=True)
+    resource_pk = models.IntegerField(null=True)
     change_type = models.CharField(choices=CHANGE_TYPES)
     subscribers = models.ManyToManyField("Subscriber")
 
