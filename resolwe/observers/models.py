@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 from .protocol import *
 
@@ -32,7 +33,10 @@ class Subscriber(models.Model):
     """Subscriber to an observer."""
 
     session_id = models.CharField(primary_key=True, max_length=100)
-    # TODO: user
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

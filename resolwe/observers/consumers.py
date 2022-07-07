@@ -3,6 +3,8 @@ import collections
 import json
 import pickle
 
+from django.apps import apps
+from django.db import connection
 from django.db.models import Q
 from channels.consumer import AsyncConsumer
 from channels.db import database_sync_to_async
@@ -22,23 +24,22 @@ class MainConsumer(AsyncConsumer):
         """Process notification from ORM."""
 
         @database_sync_to_async
-        def get_subscribers(table, item, kind):
+        def get_subscribers(table, item, type_of_change):
             """Find all subscribers watching a given item in a table."""
-            query = Q(observers__table=table, observers__change_type=kind)
+            query = Q(observers__table=table, observers__change_type=type_of_change)
             query &= Q(observers__resource=item) | Q(observers__resource__isnull=True)
             return list(Subscriber.objects.filter(query))
 
         table = message["table"]
         item = message["primary_key"]
-        kind = message["kind"]
-
-        subscribers = await get_subscribers(table, item, kind)
+        type_of_change = message["type_of_change"]
+        subscribers = await get_subscribers(table, item, type_of_change)
 
         for session_id in subscribers:
-            await self.channel_layer.send(
-                GROUP_SESSIONS.format(session_id=session_id),
-                {"type": TYPE_ITEM_UPDATE, "table": table, "item": item, "kind": kind},
-            )
+            # overwrite the message type, everything else stays the same
+            message["type"] = TYPE_ITEM_UPDATE
+            group = GROUP_SESSIONS.format(session_id=session_id)
+            await self.channel_layer.send(group, message)
 
 
 class ClientConsumer(JsonWebsocketConsumer):
@@ -47,30 +48,25 @@ class ClientConsumer(JsonWebsocketConsumer):
     def websocket_connect(self, message):
         """Called when WebSocket connection is established."""
         self.session_id = self.scope["url_route"]["kwargs"]["subscriber_id"]
-        text = message["text"]
-
-        # TODO: Authenticate
-        data = json.loads(text)
-        if not data.auth:
-            self.close()
+        self.user = self.scope["user"]
 
         # Accept the connection
         super().websocket_connect(message)
 
         # Create new subscriber object
-        Subscriber.objects.get_or_create(session_id=self.session_id)
+        Subscriber.objects.get_or_create(session_id=self.session_id, user=self.user)
 
     def receive_json(self, content):
         """Called when JSON data is received."""
         table = content["table"]
-        kind = content["kind"]
-        if "item" in content:
-            item = content["item"]
+        type_of_change = content["type_of_change"]
+        if "primary_key" in content:
+            primary_key = content["primary_key"]
         else:
-            item = None
+            primary_key = None
 
         observer = Observer.objects.get_or_create(
-            table=table, resource=item, change_type=kind
+            table=table, resource=primary_key, change_type=type_of_change
         )
         subscriber = Subscriber.objects.get(session_id=self.session_id)
 
@@ -92,12 +88,32 @@ class ClientConsumer(JsonWebsocketConsumer):
         Subscriber.objects.filter(session_id=self.session_id).delete()
         self.close()
 
-    def observer_update(self, message):
+    def observer_update(self, msg):
         """Called when update is received."""
-        self.send_json(
-            {
-                "table": message["table"],
-                "item": message["item"],
-                "kind": message["kind"],
-            }
+
+        model = apps.get_model(app_label=msg["app_label"], model_name=msg["model_name"])
+        has_permission = (
+            model.objects.filter(pk=msg["primary_key"])
+            .filter_for_user(user=self.user)
+            .exists()
         )
+
+        if has_permission:
+            self.send_json(
+                {
+                    "table": msg["table"],
+                    "primary_key": msg["primary_key"],
+                    "type_of_change": msg["type_of_change"],
+                }
+            )
+        # TODO: monitor for permission changes
+
+        # with connection.cursor() as cursor:
+        #     cursor.execute(
+        #         "SELECT permission_group FROM %s WHERE %s = %s",
+        #         [table, pk_column, primary_key],
+        #     )
+        #     row = cursor.fetchone()
+        #
+        # # TODO: what if len(row) == 0?
+        # PermissionGroup.objects.get(id=row[0])
