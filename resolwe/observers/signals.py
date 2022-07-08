@@ -8,6 +8,8 @@ from django.db import transaction
 from django.db.models import signals as model_signals
 from django_priority_batch import PrioritizedBatcher
 
+from resolwe.permissions.models import PermissionModel, Permission
+
 from .models import Observer
 from .protocol import *
 
@@ -43,6 +45,29 @@ def notify_observers(type_of_change, table, instance):
     if IN_MIGRATIONS:
         return
 
+    if table == PermissionModel._meta.db_table:
+        if not hasattr(instance, "_permission_change"):
+            # TODO: ???
+            return
+        # Permissions changed.
+        # If a user gained permission to an object, send a fake create signal.
+        # If a user lost permissions, send a delete signal.
+        old, new = instance._permission_change
+        group = instance.permission_group.pk
+
+        async_to_sync(get_channel_layer().send)(
+            CHANNEL_MAIN,
+            {
+                "type": TYPE_PERM_UPDATE,
+                # "type_of_change": type_of_change,
+                # "primary_key": str(instance.pk),
+                "old": old,
+                "new": new,
+                "permission_group": group,
+            },
+        )
+        return
+
     # Don't propagate events when there are no observers to receive them.
     if not Observer.objects.filter(table=table).exists():
         return
@@ -51,7 +76,7 @@ def notify_observers(type_of_change, table, instance):
         async_to_sync(get_channel_layer().send)(
             CHANNEL_MAIN,
             {
-                "type": TYPE_ORM_NOTIFY,
+                "type": TYPE_ITEM_UPDATE,
                 "table": table,
                 "type_of_change": type_of_change,
                 "primary_key": str(instance.pk),
@@ -75,9 +100,9 @@ def model_post_save(sender, instance, created=False, **kwargs):
     def notify():
         table = sender._meta.db_table
         if created:
-            notify_observers(ORM_NOTIFY_KIND_CREATE, table, instance)
+            notify_observers(CHANGE_TYPE_CREATE, table, instance)
         else:
-            notify_observers(ORM_NOTIFY_KIND_UPDATE, table, instance)
+            notify_observers(CHANGE_TYPE_UPDATE, table, instance)
 
     transaction.on_commit(notify)
 
@@ -92,7 +117,7 @@ def model_post_delete(sender, instance, **kwargs):
 
     def notify():
         table = sender._meta.db_table
-        notify_observers(ORM_NOTIFY_KIND_DELETE, table, instance)
+        notify_observers(CHANGE_TYPE_DELETE, table, instance)
 
     transaction.on_commit(notify)
 
@@ -115,8 +140,29 @@ def model_post_delete(sender, instance, **kwargs):
 #     def notify():
 #         table = sender._meta.db_table
 #         if action == "post_add":
-#             notify_observers(table, ORM_NOTIFY_KIND_CREATE)
+#             notify_observers(table, CHANGE_TYPE_CREATE)
 #         elif action in ("post_remove", "post_clear"):
-#             notify_observers(table, ORM_NOTIFY_KIND_DELETE)
+#             notify_observers(table, CHANGE_TYPE_DELETE)
 #
 #     transaction.on_commit(notify)
+
+
+@dispatch.receiver(model_signals.pre_save, sender=PermissionModel)
+def permissions_pre_save(sender, instance, created=False, **kwargs):
+    """Note the difference in permission value before saving a PermissionModel."""
+    if created:
+        old = Permission.NONE
+    else:
+        old = PermissionModel.objects.get(pk=instance.pk).value
+
+    new = instance.value
+    instance._permission_change = (old, new)
+
+
+@dispatch.receiver(model_signals.pre_delete, sender=PermissionModel)
+def permissions_pre_delete(sender, instance, **kwargs):
+    """Note the old permission value before deleting a PermissionModel."""
+
+    old = instance.value
+    new = Permission.NONE
+    instance._permission_change = (old, new)

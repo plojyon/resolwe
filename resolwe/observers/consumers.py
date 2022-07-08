@@ -10,6 +10,7 @@ from channels.consumer import AsyncConsumer
 from channels.db import database_sync_to_async
 from channels.generic.websocket import JsonWebsocketConsumer
 from django.core.cache import cache
+from resolwe.permissions.models import PermissionGroup
 
 from .connection import get_queryobserver_settings
 from .models import Observer, Subscriber
@@ -18,10 +19,10 @@ from .protocol import *
 
 
 class MainConsumer(AsyncConsumer):
-    """Consumer for polling observers."""
+    """Consumer for dispatching signals to interested client consumers."""
 
-    async def observer_orm_notify(self, message):
-        """Process notification from ORM."""
+    async def observers_item_update(self, message):
+        """Process ORM item updates."""
 
         @database_sync_to_async
         def get_subscribers(table, item, type_of_change):
@@ -35,15 +36,31 @@ class MainConsumer(AsyncConsumer):
         type_of_change = message["type_of_change"]
         subscribers = await get_subscribers(table, item, type_of_change)
 
+        # forward the message to the appropriate groups
         for session_id in subscribers:
-            # overwrite the message type, everything else stays the same
-            message["type"] = TYPE_ITEM_UPDATE
+            group = GROUP_SESSIONS.format(session_id=session_id)
+            await self.channel_layer.send(group, message)
+
+    async def observers_permission_update(self, message):
+        """Process ORM permission updates."""
+
+        @database_sync_to_async
+        def get_subscribers(group_pk):
+            """Find all subscribers watching the item whose permission changed."""
+            subs = Subscriber.objects.filter(observer__permission_group__pk=group_pk)
+            return list(subs)
+
+        group_pk = message["permission_group"]
+        subscribers = await get_subscribers(group_pk)
+
+        # forward the message to the appropriate groups
+        for session_id in subscribers:
             group = GROUP_SESSIONS.format(session_id=session_id)
             await self.channel_layer.send(group, message)
 
 
 class ClientConsumer(JsonWebsocketConsumer):
-    """Client consumer."""
+    """Consumer for client communication."""
 
     def websocket_connect(self, message):
         """Called when WebSocket connection is established."""
@@ -88,8 +105,8 @@ class ClientConsumer(JsonWebsocketConsumer):
         Subscriber.objects.filter(session_id=self.session_id).delete()
         self.close()
 
-    def observer_update(self, msg):
-        """Called when update is received."""
+    def observers_item_update(self, msg):
+        """Called when an item update is received."""
 
         model = apps.get_model(app_label=msg["app_label"], model_name=msg["model_name"])
         has_permission = (
@@ -106,14 +123,10 @@ class ClientConsumer(JsonWebsocketConsumer):
                     "type_of_change": msg["type_of_change"],
                 }
             )
-        # TODO: monitor for permission changes
 
-        # with connection.cursor() as cursor:
-        #     cursor.execute(
-        #         "SELECT permission_group FROM %s WHERE %s = %s",
-        #         [table, pk_column, primary_key],
-        #     )
-        #     row = cursor.fetchone()
-        #
-        # # TODO: what if len(row) == 0?
-        # PermissionGroup.objects.get(id=row[0])
+    def observers_permission_update(self, msg):
+        """Called when a PermissionModel is updated or created."""
+        old = msg["old"]
+        new = msg["new"]
+        group = msg["permission_group"]
+        # TODO: monitor for permission changes
