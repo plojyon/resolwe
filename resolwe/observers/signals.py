@@ -166,3 +166,25 @@ def permissions_pre_delete(sender, instance, **kwargs):
     old = instance.value
     new = Permission.NONE
     instance._permission_change = (old, new)
+
+
+"""
+def on_save_PermissionGroup(modified_pg):
+    set = {}
+    for o in observers.filter(observing=modified_pg):
+        for sub in o.subscribers:
+            set.add(sub)
+
+    old_pg = PermissionGroup.objects.get(pk=modified_pg)
+    data = dict()
+    for sub in set:
+        old_perms = sub.get_permission(old_pg)
+        data[sub.pk] = old_perms
+
+    instance.data = data
+
+def on_save_PermissionModel(modified_pm):
+    pg = modified_pm.permission_group
+    on_save_PermissionGroup(pg)
+
+"""

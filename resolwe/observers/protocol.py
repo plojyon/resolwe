@@ -11,6 +11,6 @@ TYPE_ITEM_UPDATE = "observers.item_update"
 TYPE_PERM_UPDATE = "observers.permission_update"
 
 # Types of database changes
-CHANGE_TYPE_CREATE = "create"
-CHANGE_TYPE_UPDATE = "update"
-CHANGE_TYPE_DELETE = "delete"
+CHANGE_TYPE_CREATE = "CREATE"
+CHANGE_TYPE_UPDATE = "UPDATE"
+CHANGE_TYPE_DELETE = "DELETE"

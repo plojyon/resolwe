@@ -12,9 +12,9 @@ class Observer(models.Model):
     """
 
     CHANGE_TYPES = (
-        CHANGE_TYPE_CREATE,
-        CHANGE_TYPE_UPDATE,
-        CHANGE_TYPE_DELETE,
+        (CHANGE_TYPE_CREATE, "create"),
+        (CHANGE_TYPE_UPDATE, "update"),
+        (CHANGE_TYPE_DELETE, "delete"),
     )
 
     id = models.CharField(primary_key=True, max_length=64)
@@ -23,7 +23,7 @@ class Observer(models.Model):
     table = models.CharField(max_length=100)
     # primary key of the observed resource (null if watching the whole table)
     resource_pk = models.IntegerField(null=True)
-    change_type = models.CharField(choices=CHANGE_TYPES)
+    change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
     subscribers = models.ManyToManyField("Subscriber")
 
     permission_models = models.ManyToManyField(PermissionModel)
