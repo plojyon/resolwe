@@ -12,9 +12,7 @@ from channels.generic.websocket import JsonWebsocketConsumer
 from django.core.cache import cache
 from resolwe.permissions.models import PermissionGroup
 
-from .connection import get_queryobserver_settings
 from .models import Observer, Subscriber
-from .observer import QueryObserver
 from .protocol import *
 
 
@@ -72,25 +70,6 @@ class ClientConsumer(JsonWebsocketConsumer):
 
         # Create new subscriber object
         Subscriber.objects.get_or_create(session_id=self.session_id, user=self.user)
-
-    def receive_json(self, content):
-        """Called when JSON data is received."""
-        table = content["table"]
-        type_of_change = content["type_of_change"]
-        if "primary_key" in content:
-            primary_key = content["primary_key"]
-        else:
-            primary_key = None
-
-        observer = Observer.objects.get_or_create(
-            table=table, resource=primary_key, change_type=type_of_change
-        )
-        subscriber = Subscriber.objects.get(session_id=self.session_id)
-
-        if content["action"] == "subscribe":
-            observer.subscribers.add(subscriber)
-        else:
-            observer.subscribers.remove(subscriber)
 
     @property
     def groups(self):
