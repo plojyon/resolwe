@@ -8,7 +8,12 @@ from django.db import transaction
 from django.db.models import signals as model_signals
 from django_priority_batch import PrioritizedBatcher
 
-from resolwe.permissions.models import PermissionModel, Permission
+from resolwe.permissions.models import (
+    PermissionModel,
+    Permission,
+    PermissionGroup,
+    PermissionObject,
+)
 
 from .models import Observer
 from .protocol import *
@@ -45,33 +50,23 @@ def notify_observers(type_of_change, table, instance):
     if IN_MIGRATIONS:
         return
 
-    if table == PermissionModel._meta.db_table:
-        if not hasattr(instance, "_permission_change"):
-            # TODO: ???
-            return
-        # Permissions changed.
-        # If a user gained permission to an object, send a fake create signal.
-        # If a user lost permissions, send a delete signal.
-        old, new = instance._permission_change
-        group = instance.permission_group.pk
-
-        async_to_sync(get_channel_layer().send)(
-            CHANNEL_MAIN,
-            {
-                "type": TYPE_PERM_UPDATE,
-                # "type_of_change": type_of_change,
-                # "primary_key": str(instance.pk),
-                "old": old,
-                "new": new,
-                "permission_group": group,
-            },
-        )
-        return
-
     # Don't propagate events when there are no observers to receive them.
     if not Observer.objects.filter(table=table).exists():
         return
 
+    # Check if this is a permission change.
+    if hasattr(instance, "_old_permissions"):
+        async_to_sync(get_channel_layer().send)(
+            CHANNEL_MAIN,
+            {
+                "type": TYPE_PERM_UPDATE,
+                "permission_group": instance.permission_group.pk,
+                "old": instance._old_permissions,
+                "new": instance._new_permissions,
+            },
+        )
+
+    # Send the item update signal.
     try:
         async_to_sync(get_channel_layer().send)(
             CHANNEL_MAIN,
@@ -96,6 +91,9 @@ def model_post_save(sender, instance, created=False, **kwargs):
     :param instance: The actual instance that was saved
     :param created: True if a new row was created
     """
+    if hasattr(instance, "_old_permissions"):
+        new_data = permissions_to_json(instance.permission_group)
+        instance._new_permissions = new_data
 
     def notify():
         table = sender._meta.db_table
@@ -147,25 +145,36 @@ def model_post_delete(sender, instance, **kwargs):
 #     transaction.on_commit(notify)
 
 
-@dispatch.receiver(model_signals.pre_save, sender=PermissionModel)
-def permissions_pre_save(sender, instance, created=False, **kwargs):
-    """Note the difference in permission value before saving a PermissionModel."""
+def permissions_to_json(perm_group):
+    """TODO: docstring."""
+    # [{user, group, value}, ...]
+    permissions = []
+    perm_models = PermissionModel.objects.get(permission_group=perm_group)
+    for perm in perm_models:
+        permissions.append(
+            {"user": perm.user, "group": perm.group, "value": perm.value}
+        )
+
+    # Don't actually stringify this yet; let Channels do it
+    return permissions
+
+
+@dispatch.receiver(model_signals.pre_save, sender=PermissionObject)
+def permission_model_pre_change(sender, instance, created=False, **kwargs):
+    """Note the difference in permission value before changing any model with permissions."""
     if created:
-        old = Permission.NONE
-    else:
-        old = PermissionModel.objects.get(pk=instance.pk).value
+        return
 
-    new = instance.value
-    instance._permission_change = (old, new)
+    perm_group = sender.objects.get(pk=instance.pk).permission_group
+    old_data = permissions_to_json(perm_group)
+    instance._old_permissions = old_data
 
 
-@dispatch.receiver(model_signals.pre_delete, sender=PermissionModel)
-def permissions_pre_delete(sender, instance, **kwargs):
-    """Note the old permission value before deleting a PermissionModel."""
-
-    old = instance.value
-    new = Permission.NONE
-    instance._permission_change = (old, new)
+@dispatch.receiver(model_signals.pre_save, sender=PermissionModel)
+def permission_model_pre_change(sender, instance, created=False, **kwargs):
+    """Note the difference in permission value before saving a PermissionModel."""
+    old_data = permissions_to_json(instance.permission_group)
+    instance._old_permissions = old_data
 
 
 """
