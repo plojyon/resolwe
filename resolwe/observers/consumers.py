@@ -98,18 +98,14 @@ class ClientConsumer(JsonWebsocketConsumer):
             primary_key = None
 
         subscriber = Subscriber.objects.get(session_id=self.session_id)
-        observer = Observer.objects.get_or_create(
+        observer, _ = Observer.objects.get_or_create(
             table=table, resource_pk=primary_key, change_type=type_of_change
         )
-        try:
-            if content["action"] == "subscribe":
-                observer.subscribers.add(subscriber)
-            else:
-                observer.subscribers.remove(subscriber)
-            observer.save()
-        except Exception as e:
-            print(e)
-        print("Models made and saved")
+        if content["action"] == "subscribe":
+            observer.subscribers.add(subscriber)
+        else:
+            observer.subscribers.remove(subscriber)
+        observer.save()
 
     def disconnect(self, code):
         """Called when WebSocket connection is closed."""

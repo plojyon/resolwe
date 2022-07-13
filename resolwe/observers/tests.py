@@ -18,6 +18,10 @@ from .models import Subscriber, Observer
 from .consumers import ClientConsumer, MainConsumer
 from .protocol import CHANNEL_MAIN
 
+# number of seconds to wait before assuming database operations went through
+# bigger number means longer testing time, smaller number means tests might not pass
+DATABASE_WAIT_TIME = 0.05
+
 
 class ObserverTestCase(TransactionTestCase):
     def setUp(self):
@@ -34,19 +38,6 @@ class ObserverTestCase(TransactionTestCase):
         self.process = Process.objects.create(
             name="Dummy process", contributor=self.user
         )
-
-        # self.descriptor_schema = DescriptorSchema.objects.create(
-        #     name="Descriptor schema",
-        #     contributor=self.contributor,
-        #     schema=[
-        #         {
-        #             "name": "test_field",
-        #             "type": "basic:string:",
-        #             "default": "default value",
-        #         }
-        #     ],
-        # )
-        # self.descr
 
         self.client_consumer = URLRouter(
             [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
@@ -78,7 +69,6 @@ class ObserverTestCase(TransactionTestCase):
 
         @database_sync_to_async
         def assertSubscriptionCount(count):
-            print(list(Subscriber.objects.all()))
             sub = Subscriber.objects.get(session_id="session_28946")
             self.assertEquals(sub.observers.count(), count)
 
@@ -95,6 +85,8 @@ class ObserverTestCase(TransactionTestCase):
                 }
             )
         )
+        # we have to wait for the subscription to register
+        await asyncio.sleep(DATABASE_WAIT_TIME)
         await assertSubscriptionCount(1)
 
         # Unsubscribe from updates.
@@ -108,6 +100,7 @@ class ObserverTestCase(TransactionTestCase):
                 }
             )
         )
+        await asyncio.sleep(DATABASE_WAIT_TIME)
         await assertSubscriptionCount(0)
 
         await client.disconnect()
