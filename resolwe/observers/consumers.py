@@ -11,6 +11,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import JsonWebsocketConsumer
 from django.core.cache import cache
 from resolwe.permissions.models import PermissionGroup
+from django.contrib.auth import get_user_model
 
 from .models import Observer, Subscriber
 from .protocol import *
@@ -63,13 +64,21 @@ class ClientConsumer(JsonWebsocketConsumer):
     def websocket_connect(self, message):
         """Called when WebSocket connection is established."""
         self.session_id = self.scope["url_route"]["kwargs"]["subscriber_id"]
-        self.user = self.scope["user"]
+
+        try:
+            self.user = self.scope["user"]
+            if not isinstance(self.scope["user"], get_user_model()):
+                raise KeyError
+        except KeyError:
+            self.close(code=3000)  # Unauthorized
+            return
+
+        # Create new subscriber object
+        sub = Subscriber.objects.create(session_id=self.session_id, user=self.user)
+        sub.save()
 
         # Accept the connection
         super().websocket_connect(message)
-
-        # Create new subscriber object
-        Subscriber.objects.get_or_create(session_id=self.session_id, user=self.user)
 
     @property
     def groups(self):
