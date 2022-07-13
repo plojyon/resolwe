@@ -17,8 +17,6 @@ class Observer(models.Model):
         (CHANGE_TYPE_DELETE, "delete"),
     )
 
-    id = models.CharField(primary_key=True, max_length=64)
-
     # table of the observed resource
     table = models.CharField(max_length=100)
     # primary key of the observed resource (null if watching the whole table)
@@ -26,10 +24,10 @@ class Observer(models.Model):
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
     subscribers = models.ManyToManyField("Subscriber", related_name="observers")
 
-    permission_models = models.ManyToManyField(PermissionModel)
-
     def __str__(self):
-        return "id={id}".format(id=self.id)
+        return "table={table} resource_pk={res} change={change}".format(
+            table=self.table, res=self.resource_pk, change=self.change_type
+        )
 
     class Meta:
         unique_together = ("table", "resource_pk", "change_type")
