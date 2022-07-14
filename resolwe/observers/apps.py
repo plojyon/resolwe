@@ -8,4 +8,4 @@ class BaseConfig(AppConfig):
     name = "resolwe.observers"
 
     def ready(self):
-        from . import signals
+        pass  # from . import signals

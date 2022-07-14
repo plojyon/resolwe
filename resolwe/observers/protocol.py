@@ -1,5 +1,3 @@
-# Channel used for routing tasks to appropriate groups.
-CHANNEL_MAIN = "observers.main"
 # Group used for individual sessions.
 GROUP_SESSIONS = "observers.session.{session_id}"
 
