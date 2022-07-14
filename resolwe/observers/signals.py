@@ -17,6 +17,7 @@ from resolwe.permissions.models import (
 
 from .models import Observer
 from .protocol import *
+from .signals import *  # just to execute signals code and hook up the receivers
 
 # Logger.
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ def notify_observers(type_of_change, table, instance):
 
     # Check if this is a permission change.
     if hasattr(instance, "_old_permissions"):
+        print("has permissions")
         async_to_sync(get_channel_layer().send)(
             CHANNEL_MAIN,
             {
@@ -68,7 +70,7 @@ def notify_observers(type_of_change, table, instance):
 
     # Send the item update signal.
     try:
-        async_to_sync(get_channel_layer().send)(
+        a = (
             CHANNEL_MAIN,
             {
                 "type": TYPE_ITEM_UPDATE,
@@ -79,8 +81,32 @@ def notify_observers(type_of_change, table, instance):
                 "model_name": instance._meta.object_name,
             },
         )
+        print("Notifying observers")
+        print(*a)
+        print("adding?", instance._state.adding)
+        print()
+        async_to_sync(get_channel_layer().send)(*a)
     except ChannelFull:
         logger.exception("Unable to notify workers.")
+
+
+# Alphabet:
+# A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z
+
+
+from resolwe.flow.models import Data
+
+
+@dispatch.receiver(model_signals.post_init, sender=Data)
+def model_post_init(sender, instance, **kwargs):
+    if not instance._state.adding:
+        return
+    print("post_init called on", instance, "with adding =", instance._state.adding)
+
+    def notify():
+        notify_observers(CHANGE_TYPE_CREATE, sender._meta.db_table, instance)
+
+    transaction.on_commit(notify)
 
 
 @dispatch.receiver(model_signals.post_save)
@@ -91,16 +117,15 @@ def model_post_save(sender, instance, created=False, **kwargs):
     :param instance: The actual instance that was saved
     :param created: True if a new row was created
     """
+    if created:
+        return
+
     if hasattr(instance, "_old_permissions"):
         new_data = permissions_to_json(instance.permission_group)
         instance._new_permissions = new_data
 
     def notify():
-        table = sender._meta.db_table
-        if created:
-            notify_observers(CHANGE_TYPE_CREATE, table, instance)
-        else:
-            notify_observers(CHANGE_TYPE_UPDATE, table, instance)
+        notify_observers(CHANGE_TYPE_UPDATE, sender._meta.db_table, instance)
 
     transaction.on_commit(notify)
 
@@ -120,36 +145,11 @@ def model_post_delete(sender, instance, **kwargs):
     transaction.on_commit(notify)
 
 
-# TODO: disregard m2m changes?
-# @dispatch.receiver(model_signals.m2m_changed)
-# def model_m2m_changed(sender, instance, action, **kwargs):
-#     """
-#     Signal emitted after any M2M relation changes via Django ORM.
-#
-#     :param sender: M2M intermediate model
-#     :param instance: The actual instance that was saved
-#     :param action: M2M action
-#     """
-#
-#     if sender._meta.app_label == "rest_framework_reactive":
-#         # Ignore own events.
-#         return
-#
-#     def notify():
-#         table = sender._meta.db_table
-#         if action == "post_add":
-#             notify_observers(table, CHANGE_TYPE_CREATE)
-#         elif action in ("post_remove", "post_clear"):
-#             notify_observers(table, CHANGE_TYPE_DELETE)
-#
-#     transaction.on_commit(notify)
-
-
 def permissions_to_json(perm_group):
     """TODO: docstring."""
     # [{user, group, value}, ...]
     permissions = []
-    perm_models = PermissionModel.objects.get(permission_group=perm_group)
+    perm_models = PermissionModel.objects.filter(permission_group=perm_group)
     for perm in perm_models:
         permissions.append(
             {"user": perm.user, "group": perm.group, "value": perm.value}

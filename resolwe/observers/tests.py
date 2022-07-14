@@ -16,11 +16,14 @@ from rest_framework.test import force_authenticate
 
 from .models import Subscriber, Observer
 from .consumers import ClientConsumer, MainConsumer
-from .protocol import CHANNEL_MAIN
-
-# number of seconds to wait before assuming database operations went through
-# bigger number means longer testing time, smaller number means tests might not pass
-DATABASE_WAIT_TIME = 0.05
+from .protocol import (
+    CHANNEL_MAIN,
+    CHANGE_TYPE_CREATE,
+    CHANGE_TYPE_UPDATE,
+    CHANGE_TYPE_DELETE,
+    TYPE_ITEM_UPDATE,
+    TYPE_PERM_UPDATE,
+)
 
 
 class ObserverTestCase(TransactionTestCase):
@@ -43,6 +46,16 @@ class ObserverTestCase(TransactionTestCase):
             [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
         )
 
+    async def clear_channel(self, channel):
+        """A hack to clear all uncaught messages from the channel layer."""
+        channel_layer = get_channel_layer()
+        while True:
+            try:
+                async with async_timeout.timeout(0.01):
+                    await channel_layer.receive(channel)
+            except asyncio.exceptions.TimeoutError:
+                break
+
     async def test_ws_no_auth(self):
         client = WebsocketCommunicator(self.client_consumer, "/ws/test-session")
 
@@ -52,27 +65,28 @@ class ObserverTestCase(TransactionTestCase):
 
         await client.disconnect()
 
-    async def test_ws_auth(self):
-        client = WebsocketCommunicator(self.client_consumer, "/ws/test-session-2")
-        client.scope["user"] = self.user
-
-        connected, _ = await client.connect()
-        self.assertTrue(connected)
-
-        await client.disconnect()
-
     async def test_ws_subscribe_unsubscribe(self):
+        main = ApplicationCommunicator(
+            MainConsumer.as_asgi(), {"type": "channel", "channel": CHANNEL_MAIN}
+        )
         client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
         client.scope["user"] = self.user
         connected, _ = await client.connect()
         self.assertTrue(connected)
 
-        @database_sync_to_async
-        def assertSubscriptionCount(count):
-            sub = Subscriber.objects.get(session_id="session_28946")
-            self.assertEquals(sub.observers.count(), count)
+        async def await_subscription_count(count):
+            """Wait until the number of all subscriptions is equal to count."""
 
-        await assertSubscriptionCount(0)
+            @database_sync_to_async
+            def get_subscription_count():
+                sub = Subscriber.objects.get(session_id="session_28946")
+                return sub.observers.count()
+
+            async with async_timeout.timeout(1):
+                while await get_subscription_count() != count:
+                    await asyncio.sleep(0.01)
+
+        await await_subscription_count(0)
 
         # Subscribe to updates.
         await client.send_to(
@@ -85,9 +99,70 @@ class ObserverTestCase(TransactionTestCase):
                 }
             )
         )
+        await client.send_to(
+            text_data=json.dumps(
+                {
+                    "action": "subscribe",
+                    "table": Data._meta.db_table,
+                    "type_of_change": "CREATE",
+                    "primary_key": 42,
+                }
+            )
+        )
         # we have to wait for the subscription to register
-        await asyncio.sleep(DATABASE_WAIT_TIME)
-        await assertSubscriptionCount(1)
+        await await_subscription_count(2)
+
+        # create object
+        @database_sync_to_async
+        def create_data():
+            Data.objects.create(
+                pk=42,
+                name="Public data",
+                slug="public-data",
+                contributor=self.user,
+                process=self.process,
+                size=0,
+            )
+
+        await self.clear_channel(CHANNEL_MAIN)
+        print("channel cleared, creating data")
+        await create_data()
+
+        # Check that a signal was generated.
+        channel_layer = get_channel_layer()
+        async with async_timeout.timeout(1):
+            notify = await channel_layer.receive(CHANNEL_MAIN)
+
+        self.assertEquals(notify["type"], TYPE_ITEM_UPDATE)
+        self.assertEquals(notify["type_of_change"], CHANGE_TYPE_CREATE)
+        self.assertEquals(notify["primary_key"], "42")
+        self.assertEquals(notify["table"], Data._meta.db_table)
+
+        # Propagate notification to worker.
+        await main.send_input(notify)
+
+        return await client.disconnect()
+
+        # Check that observer evaluation was requested.
+        notify = await channel_layer.receive(CHANNEL_WORKER)
+        assert notify["type"] == TYPE_EVALUATE
+        assert notify["observer"] == observer_id
+
+        # Propagate notification to worker.
+        await worker.send_input(notify)
+        response = await client.receive_json_from()
+        assert response["msg"] == "added"
+        assert response["primary_key"] == "id"
+        assert response["order"] == 0
+        assert response["item"] == {
+            "id": primary_key,
+            "enabled": True,
+            "name": "hello world",
+        }
+        """.............................................."""
+
+        msg = await client.receive_from()
+        print(msg)
 
         # Unsubscribe from updates.
         await client.send_to(
@@ -101,7 +176,7 @@ class ObserverTestCase(TransactionTestCase):
             )
         )
         await asyncio.sleep(DATABASE_WAIT_TIME)
-        await assertSubscriptionCount(0)
+        await await_subscription_count(0)
 
         await client.disconnect()
 

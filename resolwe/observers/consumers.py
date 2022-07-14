@@ -23,6 +23,8 @@ class MainConsumer(AsyncConsumer):
     async def observers_item_update(self, message):
         """Process ORM item updates."""
 
+        print("got item update!!")
+
         @database_sync_to_async
         def get_subscribers(table, item, type_of_change):
             """Find all subscribers watching a given item in a table."""

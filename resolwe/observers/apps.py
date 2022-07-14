@@ -6,3 +6,6 @@ class BaseConfig(AppConfig):
     """Application configuration."""
 
     name = "resolwe.observers"
+
+    def ready(self):
+        from . import signals
