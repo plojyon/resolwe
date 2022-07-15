@@ -5,7 +5,6 @@ from django.conf import settings
 from django.db import IntegrityError, models, transaction
 
 from resolwe.auditlog.models import AuditModel
-from resolwe.observers.models import ObservableQuerySet
 
 from .fields import ResolweSlugField
 
@@ -39,7 +38,7 @@ def delete_chunked(queryset, chunk_size=500):
             queryset.filter(pk__lte=last_instance.pk).delete()
 
 
-class BaseQuerySet(ObservableQuerySet):
+class BaseQuerySet(models.QuerySet):
     """Base query set for Resolwe's ORM objects."""
 
     def delete_chunked(self, chunk_size=500):

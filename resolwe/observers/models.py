@@ -16,38 +16,15 @@ from .protocol import (
     TYPE_PERM_UPDATE,
 )
 
-
-class ObservableQuerySet(models.QuerySet):
-    """All observable models inherit from this."""
-
-    def _get_observers(self, table, pk=None):
-        """Find all observers watching for changes of a given item/table."""
-        query = Q(table=table, change_type=CHANGE_TYPE_CREATE)
-        query &= Q(resource_pk=pk) | Q(resource_pk__isnull=True)
-        return list(Observer.objects.filter(query))
-
-    def create(self, *args, **kwargs):
-        created = super().create(*args, **kwargs)
-
-        # The message to be sent to observers.
-        message = {
-            "type": TYPE_ITEM_UPDATE,
-            "table": created._meta.db_table,
-            "type_of_change": CHANGE_TYPE_CREATE,
-            "primary_key": str(created.pk),
-            "app_label": created._meta.app_label,
-            "model_name": created._meta.object_name,
-        }
-
-        observers = self._get_observers(created._meta.db_table, created.pk)
-
-        # Forward the message to the appropriate groups.
-        channel_layer = get_channel_layer()
-        for observer in observers:
-            group = GROUP_SESSIONS.format(session_id=observer.session_id)
-            async_to_sync(channel_layer.send)(group, message)
-
-        return created
+# def _queryset_factory(fallback=models.QuerySet):
+#     return type(
+#         "observable_qs",
+#         (fallback,),
+#         {
+#             # "save": lambda self, *args, **kwargs: _observed_save(self, *args, **kwargs),
+#             # "objects": _queryset_factory(cls.objects),
+#         },
+#     )
 
 
 class Observer(models.Model):

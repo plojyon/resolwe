@@ -30,6 +30,8 @@ from .protocol import (
 
 from asgiref.sync import async_to_sync
 
+from django.db import transaction
+
 
 class ConnectionTestCase(TestCase):
     """Tests for verifying the correctness of the Websocket connection."""
@@ -50,7 +52,7 @@ class ConnectionTestCase(TestCase):
         await client.disconnect()
 
 
-class ObserverTestCase(TestCase):
+class ObserverTestCase(TransactionTestCase):
     def setUp(self):
         super().setUp()
 
@@ -80,12 +82,38 @@ class ObserverTestCase(TestCase):
             except asyncio.exceptions.TimeoutError:
                 break
 
+    async def assert_and_propagate_signal(self, signal, channel, client):
+        # Check that a signal was generated.
+        channel_layer = get_channel_layer()
+        async with async_timeout.timeout(1):
+            notify = await channel_layer.receive(channel)
+
+        self.assertDictEqual(notify, signal)
+
+        # Propagate notification to worker.
+        await client.send_input(notify)
+
     async def test_ws_subscribe_unsubscribe(self):
         channel = GROUP_SESSIONS.format(session_id="session_28946")
+        await self.clear_channel(channel)
         client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
         client.scope["user"] = self.user
         connected, _ = await client.connect()
         self.assertTrue(connected)
+
+        async def propagate_data_signal(change):
+            await self.assert_and_propagate_signal(
+                {
+                    "type": TYPE_ITEM_UPDATE,
+                    "type_of_change": change,
+                    "primary_key": "42",
+                    "table": Data._meta.db_table,
+                    "app_label": Data._meta.app_label,
+                    "model_name": Data._meta.object_name,
+                },
+                channel,
+                client,
+            )
 
         async def await_subscription_count(count):
             """Wait until the number of all subscriptions is equal to count."""
@@ -127,7 +155,7 @@ class ObserverTestCase(TestCase):
         # Create a Data object.
         @database_sync_to_async
         def create_data():
-            Data.objects.create(
+            return Data.objects.create(
                 pk=42,
                 name="Public data",
                 slug="public-data",
@@ -136,36 +164,30 @@ class ObserverTestCase(TestCase):
                 size=0,
             )
 
-        await self.clear_channel(channel)
-        await create_data()
-
-        # Check that a signal was generated.
-        channel_layer = get_channel_layer()
-        async with async_timeout.timeout(1):
-            notify = await channel_layer.receive(channel)
-
-        self.assertEquals(notify["type"], TYPE_ITEM_UPDATE)
-        self.assertEquals(notify["type_of_change"], CHANGE_TYPE_CREATE)
-        self.assertEquals(notify["primary_key"], "42")
-        self.assertEquals(notify["table"], Data._meta.db_table)
-
-        # Propagate notification to worker.
-        await client.send_input(notify)
+        print("gonna make data")
+        data = await create_data()
+        print("made data")
+        await propagate_data_signal(CHANGE_TYPE_CREATE)
+        packet = json.loads(await client.receive_from())
+        self.assertEquals(packet["table"], "flow_data")
+        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["type_of_change"], "CREATE")
 
         return await client.disconnect()
+        data.name = "name2"
+        await database_sync_to_async(data.save)()
+        await propagate_data_signal(CHANGE_TYPE_UPDATE)
+        packet = json.loads(await client.receive_from())
+        self.assertEquals(packet["table"], "flow_data")
+        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["type_of_change"], "UPDATE")
 
-        # Check that observer evaluation was requested.
-        notify = await channel_layer.receive(
-            GROUP_SESSIONS.format(session_id="session_28946")
-        )
-
-        assert notify["type"] == TYPE_EVALUATE
-        assert notify["observer"] == observer_id
-
-        """.............................................."""
-
-        msg = await client.receive_from()
-        print(msg)
+        await database_sync_to_async(data.delete)()
+        await propagate_data_signal(CHANGE_TYPE_DELETE)
+        packet = json.loads(await client.receive_from())
+        self.assertEquals(packet["table"], "flow_data")
+        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["type_of_change"], "DELETE")
 
         # Unsubscribe from updates.
         await client.send_to(
@@ -178,56 +200,55 @@ class ObserverTestCase(TestCase):
                 }
             )
         )
-        await asyncio.sleep(DATABASE_WAIT_TIME)
         await await_subscription_count(0)
 
         await client.disconnect()
 
-    async def test_0(self):
-        pass
-
-    async def test_1(self):
-        pass
-
-    async def test_2(self):
-        pass
-
-    async def test_3(self):
-        pass
-
-    async def test_4(self):
-        pass
-
-    async def test_5(self):
-        pass
-
-    async def test_6(self):
-        pass
-
-    async def test_7(self):
-        pass
-
-    async def test_8(self):
-        pass
-
-    async def test_9(self):
-        pass
-
-    async def test_notifications(self):
-        return
-
-        # Create a single model instance.
-        @database_sync_to_async
-        def create_model():
-            return Data.objects.create(
-                name="Data object",
-                contributor=self.user,
-                process=self.process,
-                # descriptor_schema=self.descriptor_schema,
-            )
-
-        data = await create_model()
-        # TODO: assert existance of an observer, has 1 subscriber
+    # async def test_0(self):
+    #     pass
+    #
+    # async def test_1(self):
+    #     pass
+    #
+    # async def test_2(self):
+    #     pass
+    #
+    # async def test_3(self):
+    #     pass
+    #
+    # async def test_4(self):
+    #     pass
+    #
+    # async def test_5(self):
+    #     pass
+    #
+    # async def test_6(self):
+    #     pass
+    #
+    # async def test_7(self):
+    #     pass
+    #
+    # async def test_8(self):
+    #     pass
+    #
+    # async def test_9(self):
+    #     pass
+    #
+    # async def test_notifications(self):
+    #     return
+    #
+    #     # Create a single model instance.
+    #     @database_sync_to_async
+    #     def create_model():
+    #         return Data.objects.create(
+    #             name="Data object",
+    #             contributor=self.user,
+    #             process=self.process,
+    #             # descriptor_schema=self.descriptor_schema,
+    #         )
+    #
+    #     data = await create_model()
+    #     # TODO: assert existance of an observer, has 1 subscriber
 
 
 # async def test_bla():

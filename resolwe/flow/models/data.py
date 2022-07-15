@@ -37,6 +37,7 @@ from .utils import (
     render_template,
 )
 from .worker import Worker
+from resolwe.observers.wrappers import observable
 
 # Compatibility for Python < 3.5.
 if not hasattr(json, "JSONDecodeError"):
@@ -230,6 +231,7 @@ class DataQuerySet(BaseQuerySet, PermissionQuerySet):
             data.move_to_collection(destination_collection)
 
 
+@observable
 class Data(BaseModel, PermissionObject):
     """Postgres model for storing data."""
 
