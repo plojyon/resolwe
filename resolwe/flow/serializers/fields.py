@@ -2,7 +2,7 @@
 from collections import OrderedDict
 
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils.encoding import smart_text
+from django.utils.encoding import smart_str as smart_text
 
 from rest_framework import exceptions, relations
 
