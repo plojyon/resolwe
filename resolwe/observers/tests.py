@@ -174,6 +174,7 @@ class ObserverTestCase(TransactionTestCase):
         self.assertEquals(packet["type_of_change"], "CREATE")
 
         return await client.disconnect()
+
         data.name = "name2"
         await database_sync_to_async(data.save)()
         await propagate_data_signal(CHANGE_TYPE_UPDATE)
