@@ -231,7 +231,6 @@ class DataQuerySet(BaseQuerySet, PermissionQuerySet):
             data.move_to_collection(destination_collection)
 
 
-@observable
 class Data(BaseModel, PermissionObject):
     """Postgres model for storing data."""
 

@@ -47,6 +47,7 @@ class ClientConsumer(JsonWebsocketConsumer):
 
     def receive_json(self, content):
         """Called when JSON data is received."""
+        # TODO: verify client has permission to subscribe
         table = content["table"]
         type_of_change = content["type_of_change"]
         if "primary_key" in content:
@@ -81,10 +82,27 @@ class ClientConsumer(JsonWebsocketConsumer):
             .exists()
         )
 
+        # We cannot detect permissions for a deleted object, but if it was being
+        # observed specifically (not the whole table), then we must have had
+        # permissions to view it.
+        observer = Observer.objects.filter(
+            session_id=self.session_id,
+            table=msg["table"],
+            resource_pk=msg["primary_key"],
+        )
+        if msg["type_of_change"] == CHANGE_TYPE_DELETE and observer.exists():
+            has_permission = True
+            observer.delete()  # delete the observer afterwards
+
+        # # If an object that we can't see is being observed, unsubscribe automatically
+        # if not has_permission:
+        #     print("deleting", len(observer), "observers:", list(observer))
+        #     observer.delete()
+
         if has_permission:
             self.send_json(
                 {
-                    "table": model._meta.db_table,  # msg["table"],
+                    "table": msg["table"],  # model._meta.db_table
                     "primary_key": msg["primary_key"],
                     "type_of_change": msg["type_of_change"],
                 }

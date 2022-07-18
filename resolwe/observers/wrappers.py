@@ -14,9 +14,9 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 
-def get_observers(self, table, pk=None):
+def get_observers(change_type, table, pk=None):
     """Find all observers watching for changes of a given item/table."""
-    query = Q(table=table, change_type=CHANGE_TYPE_CREATE)
+    query = Q(table=table, change_type=change_type)
     query &= Q(resource_pk=pk) | Q(resource_pk__isnull=True)
     return list(Observer.objects.filter(query))
 

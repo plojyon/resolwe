@@ -83,6 +83,7 @@ class ObserverTestCase(TransactionTestCase):
                 break
 
     async def assert_and_propagate_signal(self, signal, channel, client):
+        """Assert a signal is queued in a channel and send it to the client."""
         # Check that a signal was generated.
         channel_layer = get_channel_layer()
         async with async_timeout.timeout(1):
@@ -93,9 +94,28 @@ class ObserverTestCase(TransactionTestCase):
         # Propagate notification to worker.
         await client.send_input(notify)
 
+    async def assert_empty_channel(self, channel):
+        """Assert there are no messages queued in a given channel."""
+        channel_layer = get_channel_layer()
+        with self.assertRaises(asyncio.exceptions.TimeoutError):
+            async with async_timeout.timeout(0.01):
+                await channel_layer.receive(channel)
+
+    async def await_subscription_count(self, count):
+        """Wait until the number of all subscriptions is equal to count."""
+
+        @database_sync_to_async
+        def get_subscription_count():
+            return Observer.objects.filter(session_id="session_28946").count()
+
+        async with async_timeout.timeout(1):
+            while await get_subscription_count() != count:
+                await asyncio.sleep(0.01)
+
     async def test_ws_subscribe_unsubscribe(self):
         channel = GROUP_SESSIONS.format(session_id="session_28946")
         await self.clear_channel(channel)
+
         client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
         client.scope["user"] = self.user
         connected, _ = await client.connect()
@@ -115,18 +135,7 @@ class ObserverTestCase(TransactionTestCase):
                 client,
             )
 
-        async def await_subscription_count(count):
-            """Wait until the number of all subscriptions is equal to count."""
-
-            @database_sync_to_async
-            def get_subscription_count():
-                return Observer.objects.filter(session_id="session_28946").count()
-
-            async with async_timeout.timeout(1):
-                while await get_subscription_count() != count:
-                    await asyncio.sleep(0.01)
-
-        await await_subscription_count(0)
+        await self.await_subscription_count(0)
 
         # Subscribe to updates.
         await client.send_to(
@@ -149,8 +158,18 @@ class ObserverTestCase(TransactionTestCase):
                 }
             )
         )
-        # We have to wait for the subscription to register
-        await await_subscription_count(2)
+        await client.send_to(
+            text_data=json.dumps(
+                {
+                    "action": "subscribe",
+                    "table": Data._meta.db_table,
+                    "type_of_change": "DELETE",
+                    "primary_key": 42,
+                }
+            )
+        )
+        # We have to wait for the subscriptions to register
+        await self.await_subscription_count(3)
 
         # Create a Data object.
         @database_sync_to_async
@@ -164,16 +183,36 @@ class ObserverTestCase(TransactionTestCase):
                 size=0,
             )
 
-        print("gonna make data")
+        print("creating data")
         data = await create_data()
-        print("made data")
+        print("created data")
+
+        print("list received signals:")
+        # print all messages in channel
+        channel_layer = get_channel_layer()
+        while True:
+            try:
+                async with async_timeout.timeout(0.01):
+                    print(await channel_layer.receive(channel))
+            except asyncio.exceptions.TimeoutError:
+                break
+
+        return await client.disconnect()
+        ###################################################################
+
+        # TODO: update, then create?
         await propagate_data_signal(CHANGE_TYPE_CREATE)
+        await propagate_data_signal(CHANGE_TYPE_UPDATE)
+
         packet = json.loads(await client.receive_from())
         self.assertEquals(packet["table"], "flow_data")
         self.assertEquals(packet["primary_key"], "42")
         self.assertEquals(packet["type_of_change"], "CREATE")
 
-        return await client.disconnect()
+        packet = json.loads(await client.receive_from())
+        self.assertEquals(packet["table"], "flow_data")
+        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["type_of_change"], "UPDATE")
 
         data.name = "name2"
         await database_sync_to_async(data.save)()
@@ -182,13 +221,6 @@ class ObserverTestCase(TransactionTestCase):
         self.assertEquals(packet["table"], "flow_data")
         self.assertEquals(packet["primary_key"], "42")
         self.assertEquals(packet["type_of_change"], "UPDATE")
-
-        await database_sync_to_async(data.delete)()
-        await propagate_data_signal(CHANGE_TYPE_DELETE)
-        packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_data")
-        self.assertEquals(packet["primary_key"], "42")
-        self.assertEquals(packet["type_of_change"], "DELETE")
 
         # Unsubscribe from updates.
         await client.send_to(
@@ -201,9 +233,52 @@ class ObserverTestCase(TransactionTestCase):
                 }
             )
         )
-        await await_subscription_count(0)
+        await self.await_subscription_count(2)
+
+        data.name = "name2"
+        await database_sync_to_async(data.save)()
+        await self.assert_empty_channel(channel)
+
+        await database_sync_to_async(data.delete)()
+        await propagate_data_signal(CHANGE_TYPE_DELETE)
+        packet = json.loads(await client.receive_from())
+        self.assertEquals(packet["table"], "flow_data")
+        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["type_of_change"], "DELETE")
+
+        # the observers should be deleted after the resource
+        await self.await_subscription_count(0)
 
         await client.disconnect()
+
+    async def test_remove_observers_after_socket_close(self):
+        client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
+        client.scope["user"] = self.user
+        connected, _ = await client.connect()
+        self.assertTrue(connected)
+
+        await client.send_to(
+            text_data=json.dumps(
+                {
+                    "action": "subscribe",
+                    "table": Data._meta.db_table,
+                    "type_of_change": "UPDATE",
+                    "primary_key": 42,
+                }
+            )
+        )
+        await self.await_subscription_count(1)
+        await client.disconnect()
+        await self.await_subscription_count(0)
+
+    # TODO: simple
+    # async def test_observe_table(self):
+    # TODO: make/modify/delete obj with(out) permissions on an observed table
+    # async def test_double_subscription(self):
+    # async def test_subscribe_to_forbidden_object(self):
+    # TODO: assert subscription fails
+    # async def test_subscribe_to_nonexistent_object(self):
+    # TODO: assert subscription fails
 
     # async def test_0(self):
     #     pass
