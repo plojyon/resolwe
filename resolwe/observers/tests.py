@@ -275,7 +275,87 @@ class ObserverTestCase(TransactionTestCase):
         await client.disconnect()
         await self.await_subscription_count(0)
 
-    async def test_change_permission_group(self):
+    async def test_table_watching(self):
+        # Create a subscription to the Data table.
+        @database_sync_to_async
+        def subscribe():
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=None,
+                change_type=CHANGE_TYPE_CREATE,
+                session_id="session_28946",
+                user=self.user,
+            )
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=None,
+                change_type=CHANGE_TYPE_DELETE,
+                session_id="session_28946",
+                user=self.user,
+            )
+
+        await subscribe()
+        await self.await_subscription_count(2)
+
+        # Create a new Data object
+        @database_sync_to_async
+        def create_data():
+            return Data.objects.create(
+                pk=42,
+                name="Public data",
+                slug="public-data",
+                contributor=self.user,
+                process=self.process,
+                size=0,
+            )
+
+        data = await create_data()
+
+        # Assert we detect creations.
+        message = {
+            "type": TYPE_ITEM_UPDATE,
+            "table": Data._meta.db_table,
+            "type_of_change": CHANGE_TYPE_CREATE,
+            "primary_key": "42",
+            "app_label": Data._meta.app_label,
+            "model_name": Data._meta.object_name,
+        }
+
+        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        async with async_timeout.timeout(1):
+            notify = await get_channel_layer().receive(channel)
+        self.assertDictEqual(notify, message)
+
+        await self.assert_empty_channel(channel)
+
+        # Delete the Data object
+        @database_sync_to_async
+        def delete_data(data):
+            data.delete()
+
+        await delete_data(data)
+
+        # Assert we detect deletions.
+        message = {
+            "type": TYPE_ITEM_UPDATE,
+            "table": Data._meta.db_table,
+            "type_of_change": CHANGE_TYPE_DELETE,
+            "primary_key": "42",
+            "app_label": Data._meta.app_label,
+            "model_name": Data._meta.object_name,
+        }
+
+        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        async with async_timeout.timeout(1):
+            notify = await get_channel_layer().receive(channel)
+        self.assertDictEqual(notify, message)
+
+        await self.assert_empty_channel(channel)
+
+        # Assert subscription didn't delete because Data got deleted.
+        await self.await_subscription_count(2)
+
+    async def atest_change_permission_group(self):
 
         # Create a Data object visible to self.impostor.
         @database_sync_to_async
@@ -348,8 +428,66 @@ class ObserverTestCase(TransactionTestCase):
     async def atest_change_permission_model(self):
         pass
 
-    async def atest_gain_permissions(self):
-        pass
+    async def test_gain_permissions(self):
+        # Create a new Data object
+        @database_sync_to_async
+        def create_data():
+            return Data.objects.create(
+                pk=42,
+                name="Public data",
+                slug="public-data",
+                contributor=self.user,
+                process=self.process,
+                size=0,
+            )
+
+        data = await create_data()
+
+        # Create a subscription to the Data table by self.impostor.
+        @database_sync_to_async
+        def subscribe():
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=None,
+                change_type=CHANGE_TYPE_CREATE,
+                session_id="session_28946",
+                user=self.impostor,
+            )
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=None,
+                change_type=CHANGE_TYPE_DELETE,
+                session_id="session_28946",
+                user=self.impostor,
+            )
+
+        await subscribe()
+        await self.await_subscription_count(2)
+
+        # Grant self.impostor view permissions to the Data object.
+        @database_sync_to_async
+        def grant_permissions(data):
+            data.set_permission(Permission.VIEW, self.impostor)
+            data.save()  # TODO: save?
+
+        await grant_permissions(data)
+
+        # Assert we detect gaining permissions as creations.
+        message = {
+            "type": TYPE_ITEM_UPDATE,
+            "table": Data._meta.db_table,
+            "type_of_change": CHANGE_TYPE_CREATE,
+            "primary_key": "42",
+            "app_label": Data._meta.app_label,
+            "model_name": Data._meta.object_name,
+        }
+
+        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        async with async_timeout.timeout(1):
+            notify = await get_channel_layer().receive(channel)
+        self.assertDictEqual(notify, message)
+
+        await self.assert_empty_channel(channel)
 
     # TODO: simple
     # async def test_observe_table(self):
