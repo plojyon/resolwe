@@ -5,7 +5,6 @@ from .protocol import (
     CHANGE_TYPE_UPDATE,
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
-    TYPE_PERM_UPDATE,
 )
 from django.db import models
 from django.db.models import Q

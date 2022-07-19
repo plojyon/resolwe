@@ -13,7 +13,6 @@ from .protocol import (
     CHANGE_TYPE_UPDATE,
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
-    TYPE_PERM_UPDATE,
 )
 
 # def _queryset_factory(fallback=models.QuerySet):

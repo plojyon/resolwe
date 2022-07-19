@@ -16,6 +16,7 @@ from django.urls import path
 from rest_framework.test import force_authenticate
 
 from resolwe.flow.models import Data, DescriptorSchema, Process
+from resolwe.permissions.models import PermissionGroup, PermissionModel, Permission
 
 from .consumers import ClientConsumer
 from .models import Observer
@@ -25,7 +26,6 @@ from .protocol import (
     CHANGE_TYPE_UPDATE,
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
-    TYPE_PERM_UPDATE,
 )
 
 from asgiref.sync import async_to_sync
@@ -57,13 +57,17 @@ class ObserverTestCase(TransactionTestCase):
         super().setUp()
 
         self.user = get_user_model().objects.create(
-            username="xX-auth3nt1cat0r-Xx",
+            username="bob",
             email="user@test.com",
-            first_name="John",
-            last_name="Williams",
+            first_name="Bob",
+            last_name="Bobnik",
         )
-        self.user.save()
-
+        self.impostor = get_user_model().objects.create(
+            username="capital-bob",
+            email="bob@bob.bob",
+            first_name="Capital",
+            last_name="Bobnik",
+        )
         self.process = Process.objects.create(
             name="Dummy process", contributor=self.user
         )
@@ -112,7 +116,7 @@ class ObserverTestCase(TransactionTestCase):
             while await get_subscription_count() != count:
                 await asyncio.sleep(0.01)
 
-    async def test_ws_subscribe_unsubscribe(self):
+    async def atest_ws_subscribe_unsubscribe(self):
         channel = GROUP_SESSIONS.format(session_id="session_28946")
         await self.clear_channel(channel)
 
@@ -251,7 +255,7 @@ class ObserverTestCase(TransactionTestCase):
 
         await client.disconnect()
 
-    async def test_remove_observers_after_socket_close(self):
+    async def atest_remove_observers_after_socket_close(self):
         client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
         client.scope["user"] = self.user
         connected, _ = await client.connect()
@@ -270,6 +274,82 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_subscription_count(1)
         await client.disconnect()
         await self.await_subscription_count(0)
+
+    async def test_change_permission_group(self):
+
+        # Create a Data object visible to self.impostor.
+        @database_sync_to_async
+        def create_data():
+            data = Data.objects.create(
+                pk=42,
+                name="Public data",
+                slug="public-data",
+                contributor=self.user,
+                process=self.process,
+                size=0,
+            )
+            data.set_permission(Permission.VIEW, self.impostor)
+            return data
+
+        data = await create_data()
+
+        # Create a subscription to the Data object by self.impostor.
+        @database_sync_to_async
+        def subscribe():
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=42,
+                change_type=CHANGE_TYPE_UPDATE,
+                session_id="session_28946",
+                user=self.impostor,
+            )
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=42,
+                change_type=CHANGE_TYPE_DELETE,
+                session_id="session_28946",
+                user=self.impostor,
+            )
+
+        await subscribe()
+
+        # Reset the PermissionGroup of the Data object
+        # (removes permissions to self.impostor)
+        @database_sync_to_async
+        def change_permission_group(data):
+            data.permission_group = PermissionGroup.objects.create()
+            data.save()
+
+        await change_permission_group(data)
+
+        # Assert that self.impostor sees this as a deletion.
+        message = {
+            "type": TYPE_ITEM_UPDATE,
+            "table": Data._meta.db_table,
+            "type_of_change": CHANGE_TYPE_DELETE,
+            "primary_key": "42",
+            "app_label": Data._meta.app_label,
+            "model_name": Data._meta.object_name,
+        }
+
+        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        async with async_timeout.timeout(1):
+            notify = await get_channel_layer().receive(channel)
+        self.assertDictEqual(notify, message)
+
+        await self.assert_empty_channel(channel)
+
+        # Assert self.impostor is no longer subscribed to changes
+        await self.await_subscription_count(0)
+
+    async def atest_change_permission_value(self):
+        pass
+
+    async def atest_change_permission_model(self):
+        pass
+
+    async def atest_gain_permissions(self):
+        pass
 
     # TODO: simple
     # async def test_observe_table(self):

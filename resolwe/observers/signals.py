@@ -42,9 +42,6 @@ def notify(instance, change_type):
     if IN_MIGRATIONS:
         return
 
-    if instance._meta.db_table == Data._meta.db_table:
-        print("sending signal for", change_type)
-
     message = {
         "type": TYPE_ITEM_UPDATE,
         "table": instance._meta.db_table,
@@ -64,38 +61,99 @@ def notify(instance, change_type):
 
 @dispatch.receiver(model_signals.post_save)
 def model_post_save(sender, instance, created=False, **kwargs):
-    change = CHANGE_TYPE_CREATE if created else CHANGE_TYPE_UPDATE
-
-    if not created and instance._state.adding:
+    global IN_MIGRATIONS
+    if IN_MIGRATIONS:
         return
 
-    if instance._meta.db_table == Data._meta.db_table:
-        print(
-            "post-save of",
-            instance,
-            "called with created =",
-            created,
-            " instance._state.adding =",
-            instance._state.adding,
-        )
-        print(
-            "registering on_commit for change_type",
-            change,
-            "on transaction",
-            transaction,
-        )
-
+    change = CHANGE_TYPE_CREATE if created else CHANGE_TYPE_UPDATE
     transaction.on_commit(lambda: notify(instance, change))
 
 
 @dispatch.receiver(model_signals.post_delete)
 def model_post_delete(sender, instance, **kwargs):
+    global IN_MIGRATIONS
+    if IN_MIGRATIONS:
+        return
     transaction.on_commit(lambda: notify(instance, CHANGE_TYPE_DELETE))
 
 
-# this never happens:
-# @dispatch.receiver(model_signals.pre_save)
-# def model_pre_save(sender, instance, created=False, **kwargs):
-#     if not created:
-#         return
-#     transaction.on_commit(lambda: notify(instance, CHANGE_TYPE_CREATE))
+@dispatch.receiver(model_signals.pre_save)
+def model_pre_save(sender, instance, created=False, **kwargs):
+    global IN_MIGRATIONS
+    if IN_MIGRATIONS:
+        return
+    instance._was_adding = instance._state.adding
+
+    # created is always False. Use instance._state.adding
+    if instance._state.adding:
+        return
+
+    if isinstance(instance, PermissionObject):
+        old_permissions = dict()
+        new_permissions = dict()
+        for observer in Observer.objects.all():
+            new_permissions[
+                observer.user.pk
+            ] = instance.permission_group.get_permission(observer.user)
+
+            saved_instance = type(instance).objects.get(pk=instance.pk)
+            old_permissions[
+                observer.user.pk
+            ] = saved_instance.permission_group.get_permission(observer.user)
+
+        # Calculate who gained and lost permissions to the object.
+        gains, losses = permission_diff(old_permissions, new_permissions)
+
+        channel_layer = get_channel_layer()
+        for change_type, user_ids in (
+            (CHANGE_TYPE_CREATE, gains),
+            (CHANGE_TYPE_DELETE, losses),
+        ):
+            message = {
+                "type": TYPE_ITEM_UPDATE,
+                "table": instance._meta.db_table,
+                "type_of_change": change_type,
+                "primary_key": str(instance.pk),
+                "app_label": instance._meta.app_label,
+                "model_name": instance._meta.object_name,
+            }
+            session_ids = list(
+                Observer.objects.filter(
+                    user__in=user_ids,
+                    table=instance._meta.db_table,
+                    resource_pk=instance.pk,
+                )
+                .values_list("session_id", flat=True)
+                .distinct()
+            )
+            for session_id in session_ids:
+                channel = GROUP_SESSIONS.format(session_id=session_id)
+
+                transaction.on_commit(
+                    lambda: async_to_sync(channel_layer.send)(channel, message)
+                )
+
+        # Delete irrelevant observers.
+        Observer.objects.filter(
+            user__in=losses, table=instance._meta.db_table, resource_pk=instance.pk
+        ).delete()
+
+
+def permission_diff(old_permissions, new_permissions):
+    """Calculate the difference in permissions.
+
+    Accept two dicts of the form {user_id: permission} and return two lists.
+    The first is user_ids of users who gained permissions (0 to >0), and the
+    second is user_ids of users who lost permissions (>0 to 0)
+    """
+    gains = []
+    losses = []
+    # Keys in both readings may not match in an edge case where a subscription
+    # was created / destroyed while a transaction was open. We'll ignore differences.
+    common_keys = set(new_permissions.keys()).intersection(set(old_permissions.keys()))
+    for key in common_keys:
+        if old_permissions[key] == 0 and new_permissions[key] > 0:
+            gains.append(key)
+        if old_permissions[key] > 0 and new_permissions[key] == 0:
+            losses.append(key)
+    return (gains, losses)
