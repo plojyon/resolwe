@@ -21,6 +21,7 @@ from resolwe.flow.models.utils import (
     validation_schema,
 )
 from resolwe.flow.utils import dict_dot, get_data_checksum, iterate_fields
+from resolwe.observers.wrappers import observable
 from resolwe.permissions.models import PermissionObject, PermissionQuerySet
 from resolwe.permissions.utils import assign_contributor_permissions, copy_permissions
 
@@ -37,7 +38,6 @@ from .utils import (
     render_template,
 )
 from .worker import Worker
-from resolwe.observers.wrappers import observable
 
 # Compatibility for Python < 3.5.
 if not hasattr(json, "JSONDecodeError"):

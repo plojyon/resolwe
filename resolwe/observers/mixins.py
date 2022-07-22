@@ -1,8 +1,9 @@
+from django.contrib.auth import get_user_model
+
 from rest_framework import exceptions, mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from django.contrib.auth import get_user_model
 from resolwe.flow.models import Data, DescriptorSchema, Process
 
 from .models import Observer

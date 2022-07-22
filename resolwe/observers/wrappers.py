@@ -1,4 +1,10 @@
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
 from django.db import models
+from django.db.models import Q
+
+from .models import Observer
 from .protocol import (
     CHANGE_TYPE_CREATE,
     CHANGE_TYPE_DELETE,
@@ -6,11 +12,6 @@ from .protocol import (
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
 )
-from django.db import models
-from django.db.models import Q
-from .models import Observer
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 
 
 def observed_list(original=lambda: None):
