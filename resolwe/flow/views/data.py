@@ -22,8 +22,10 @@ from .mixins import (
     ResolweUpdateModelMixin,
 )
 from .utils import get_collection_for_user
+from resolwe.observers.wrappers import observable
 
 
+@observable
 class DataViewSet(
     ObservableMixin,
     ResolweCreateModelMixin,
