@@ -75,13 +75,6 @@ class ClientConsumer(JsonWebsocketConsumer):
     def observers_item_update(self, msg):
         """Called when an item update is received."""
 
-        model = apps.get_model(app_label=msg["app_label"], model_name=msg["model_name"])
-        has_permission = (
-            model.objects.filter(pk=msg["primary_key"])
-            .filter_for_user(user=self.user)
-            .exists()
-        )
-
         # We cannot detect permissions for a deleted object, but if it was being
         # observed specifically (not the whole table), then we must have had
         # permissions to view it.
@@ -91,7 +84,6 @@ class ClientConsumer(JsonWebsocketConsumer):
             resource_pk=msg["primary_key"],
         )
         if msg["type_of_change"] == CHANGE_TYPE_DELETE and observer.exists():
-            has_permission = True
             observer.delete()  # delete the observer afterwards
 
         # # If an object that we can't see is being observed, unsubscribe automatically
@@ -99,11 +91,10 @@ class ClientConsumer(JsonWebsocketConsumer):
         #     print("deleting", len(observer), "observers:", list(observer))
         #     observer.delete()
 
-        if has_permission:
-            self.send_json(
-                {
-                    "table": msg["table"],  # model._meta.db_table
-                    "primary_key": msg["primary_key"],
-                    "type_of_change": msg["type_of_change"],
-                }
-            )
+        self.send_json(
+            {
+                "table": msg["table"],  # model._meta.db_table
+                "primary_key": msg["primary_key"],
+                "type_of_change": msg["type_of_change"],
+            }
+        )
