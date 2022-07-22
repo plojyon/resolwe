@@ -456,19 +456,25 @@ class ObserverTestCase(TransactionTestCase):
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=None,
+                change_type=CHANGE_TYPE_UPDATE,
+                session_id="session_28946",
+                user=self.impostor,
+            )
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                resource_pk=None,
                 change_type=CHANGE_TYPE_DELETE,
                 session_id="session_28946",
                 user=self.impostor,
             )
 
         await subscribe()
-        await self.await_subscription_count(2)
+        await self.await_subscription_count(3)
 
         # Grant self.impostor view permissions to the Data object.
         @database_sync_to_async
         def grant_permissions(data):
             data.set_permission(Permission.VIEW, self.impostor)
-            data.save()  # TODO: save?
 
         await grant_permissions(data)
 

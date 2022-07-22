@@ -47,6 +47,15 @@ class Observer(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
 
+    @classmethod
+    def get_interested(cls, table, resource_pk=None, change_type=None):
+        """Find all observers watching for changes of a given item/table."""
+        query = Q(table=table)
+        if change_type is not None:
+            query &= Q(change_type=change_type)
+        query &= Q(resource_pk=resource_pk) | Q(resource_pk__isnull=True)
+        return cls.objects.filter(query)
+
     def __str__(self):
         return "table={table} resource_pk={res} change={change} session_id={session_id}".format(
             table=self.table,

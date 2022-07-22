@@ -15,7 +15,6 @@ from resolwe.permissions.models import (
 )
 from .models import Observer
 from .protocol import *
-from .wrappers import get_observers
 from resolwe.flow.models import Data
 from django.db.models import Q
 
@@ -50,7 +49,11 @@ def notify(instance, change_type):
         "app_label": instance._meta.app_label,
         "model_name": instance._meta.object_name,
     }
-    observers = get_observers(change_type, instance._meta.db_table, instance.pk)
+    observers = Observer.get_interested(
+        change_type=change_type,
+        table=instance._meta.db_table,
+        resource_pk=instance.pk,
+    )
 
     # Forward the message to the appropriate groups.
     channel_layer = get_channel_layer()
@@ -60,17 +63,20 @@ def notify(instance, change_type):
 
 
 @dispatch.receiver(model_signals.post_save)
-def model_post_save(sender, instance, created=False, **kwargs):
+def observe_model_modification(sender, instance, created=False, **kwargs):
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
 
-    change = CHANGE_TYPE_CREATE if created else CHANGE_TYPE_UPDATE
-    transaction.on_commit(lambda: notify(instance, change))
+    # Create signals will be caught when the PermissionModel is added.
+    if created:
+        return
+
+    transaction.on_commit(lambda: notify(instance, CHANGE_TYPE_UPDATE))
 
 
 @dispatch.receiver(model_signals.post_delete)
-def model_post_delete(sender, instance, **kwargs):
+def observe_model_deletion(sender, instance, **kwargs):
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -78,90 +84,57 @@ def model_post_delete(sender, instance, **kwargs):
 
 
 @dispatch.receiver(model_signals.pre_save)
-def model_pre_save(sender, instance, created=False, **kwargs):
+def detect_permission_change(sender, instance, created=False, **kwargs):
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
 
-    # created is always False. Use instance._state.adding
-    if instance._state.adding:
-        return
-        if isinstance(instance, PermissionModel):
-            instance = instance.permission_group
-        else:
+    if isinstance(instance, PermissionModel):
+        gains = set()
+        losses = set()
+        for observer in Observer.objects.all():
+            old_permission = instance.permission_group.get_permission(observer.user)
+            if old_permission > 0 and instance.value == 0:
+                losses.add(observer.user.pk)
+            elif old_permission == 0 and instance.value > 0:
+                gains.add(observer.user.pk)
+
+        # In case of no changes, return.
+        if len(gains) == 0 and len(losses) == 0:
             return
 
-    if isinstance(instance, PermissionObject):
-        # or isinstance(instance, PermissionModel):
+        # Find all relevant PermissionObjects and announce permission changes.
+        for cls in PermissionObject.__subclasses__():
+            for inst in cls.objects.filter(permission_group=instance.permission_group):
+                announce_permission_changes(inst, gains, losses)
+
+    elif isinstance(instance, PermissionObject):
+        # created is always False; use instance._state.adding
+        if instance._state.adding:
+            return
+
         saved_instance = type(instance).objects.get(pk=instance.pk)
         old_perm_group = instance.permission_group
         new_perm_group = saved_instance.permission_group
 
-        # Calculate who gained and lost permissions to the object.
-        gains, losses = permission_diff(old_perm_group, new_perm_group)
-
-        print(
-            "pre-save on",
-            instance,
-            "with created =",
-            instance._state.adding,
-            "has (gains,losses) = ",
-            (gains, losses),
-        )
-
-        # Announce to relevant observers
-        announce_permission_changes(instance, gains, losses)
-
-        # Delete redundant observers.
-        Observer.objects.filter(
-            user__in=losses, table=instance._meta.db_table, resource_pk=instance.pk
-        ).delete()
-    elif isinstance(instance, PermissionGroup):
-        saved_instance = type(instance).objects.get(pk=instance.pk)
+        # In case of no changes, return.
+        if old_perm_group == new_perm_group:
+            return
 
         # Calculate who gained and lost permissions to the object.
-        gains, losses = permission_diff(instance, saved_instance)
+        gains = set()
+        losses = set()
+        for observer in Observer.objects.all():
+            new_permissions = old_perm_group.get_permission(observer.user)
+            old_permissions = new_perm_group.get_permission(observer.user)
 
-        print(
-            "pre-save on",
-            instance,
-            "->",
-            saved_instance,
-            "with created =",
-            instance._state.adding,
-            "has (gains,losses) = ",
-            (gains, losses),
-        )
+            if old_permissions == 0 and new_permissions > 0:
+                gains.add(observer.user)
+            if old_permissions > 0 and new_permissions == 0:
+                losses.add(observer.user)
 
-        # Announce to relevant observers
+        # Announce to relevant observers.
         announce_permission_changes(instance, gains, losses)
-
-
-def permission_diff(old_perm_group, new_perm_group):
-    """Calculate the difference in permissions given two PermissionGroups.
-
-    Accept two PermissionGroup objects and return two lists. The first list is
-    user_ids of users who gained permissions (0 to >0), and the second list is
-    user_ids of users who lost permissions (>0 to 0).
-    """
-    old_permissions = dict()
-    new_permissions = dict()
-    for observer in Observer.objects.all():
-        new_permissions[observer.user.pk] = old_perm_group.get_permission(observer.user)
-        old_permissions[observer.user.pk] = new_perm_group.get_permission(observer.user)
-
-    # Calculate the list of people who lost/gained permissions
-    gains = []
-    losses = []
-    # Keys in both readings may not match in an edge case where a subscription
-    # was created / destroyed while a transaction was open. We'll ignore differences.
-    common_keys = set(new_permissions.keys()).intersection(set(old_permissions.keys()))
-    for key in common_keys:
-        if old_permissions[key] == 0 and new_permissions[key] > 0:
-            gains.append(key)
-        if old_permissions[key] > 0 and new_permissions[key] == 0:
-            losses.append(key)
-    return (gains, losses)
 
 
 def announce_permission_changes(instance, gains, losses):
@@ -175,6 +148,8 @@ def announce_permission_changes(instance, gains, losses):
         (CHANGE_TYPE_CREATE, gains),
         (CHANGE_TYPE_DELETE, losses),
     ):
+        if len(user_ids) == 0:
+            continue
 
         message = {
             "type": TYPE_ITEM_UPDATE,
@@ -185,11 +160,11 @@ def announce_permission_changes(instance, gains, losses):
             "model_name": instance._meta.object_name,
         }
         session_ids = list(
-            Observer.objects.filter(
-                user__in=user_ids,
+            Observer.get_interested(
                 table=instance._meta.db_table,
                 resource_pk=instance.pk,
             )
+            .filter(user__in=user_ids)
             .values_list("session_id", flat=True)
             .distinct()
         )
