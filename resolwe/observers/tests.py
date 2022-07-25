@@ -17,7 +17,7 @@ from django.urls import path
 
 from rest_framework.test import force_authenticate
 
-from resolwe.flow.models import Data, DescriptorSchema, Process
+from resolwe.flow.models import Data, DescriptorSchema, Entity, Process
 from resolwe.permissions.models import Permission, PermissionGroup, PermissionModel
 
 from .consumers import ClientConsumer
@@ -123,15 +123,15 @@ class ObserverTestCase(TransactionTestCase):
         connected, _ = await client.connect()
         self.assertTrue(connected)
 
-        async def propagate_data_signal(change):
+        async def propagate_entity_signal(change):
             await self.assert_and_propagate_signal(
                 {
                     "type": TYPE_ITEM_UPDATE,
                     "type_of_change": change,
                     "primary_key": "43",
-                    "table": Data._meta.db_table,
-                    "app_label": Data._meta.app_label,
-                    "model_name": Data._meta.object_name,
+                    "table": Entity._meta.db_table,
+                    "app_label": Entity._meta.app_label,
+                    "model_name": Entity._meta.object_name,
                 },
                 channel,
                 client,
@@ -144,7 +144,7 @@ class ObserverTestCase(TransactionTestCase):
             text_data=json.dumps(
                 {
                     "action": "subscribe",
-                    "table": Data._meta.db_table,
+                    "table": Entity._meta.db_table,
                     "type_of_change": "UPDATE",
                     "primary_key": 43,
                 }
@@ -154,7 +154,7 @@ class ObserverTestCase(TransactionTestCase):
             text_data=json.dumps(
                 {
                     "action": "subscribe",
-                    "table": Data._meta.db_table,
+                    "table": Entity._meta.db_table,
                     "type_of_change": "CREATE",
                     "primary_key": 43,
                 }
@@ -164,7 +164,7 @@ class ObserverTestCase(TransactionTestCase):
             text_data=json.dumps(
                 {
                     "action": "subscribe",
-                    "table": Data._meta.db_table,
+                    "table": Entity._meta.db_table,
                     "type_of_change": "DELETE",
                     "primary_key": 43,
                 }
@@ -173,51 +173,32 @@ class ObserverTestCase(TransactionTestCase):
         # We have to wait for the subscriptions to register
         await self.await_subscription_count(3)
 
-        # Create a Data object.
+        # Create an Entity object.
         @database_sync_to_async
-        def create_data():
-            return Data.objects.create(
+        def create_entity():
+            entity = Entity.objects.create(
                 pk=43,
-                name="Test data",
-                slug="test-data",
+                name="Test entity",
+                slug="test-entity",
                 contributor=self.user_alice,
-                process=self.process,
-                size=0,
             )
+            entity.set_permission(Permission.OWNER, self.user_alice)
+            return entity
 
-        print("creating data")
-        data = await create_data()
-        print("created data")
+        entity = await create_entity()
 
-        print("listing channel")
-        channel_layer = get_channel_layer()
-        while True:
-            try:
-                async with async_timeout.timeout(0.01):
-                    print(await channel_layer.receive(channel))
-            except asyncio.exceptions.TimeoutError:
-                break
-
-        # TODO: update, then create?
-        await propagate_data_signal(CHANGE_TYPE_UPDATE)
-        await propagate_data_signal(CHANGE_TYPE_CREATE)
-
+        await propagate_entity_signal(CHANGE_TYPE_CREATE)
         packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_data")
-        self.assertEquals(packet["primary_key"], "42")
-        self.assertEquals(packet["type_of_change"], "UPDATE")
-
-        packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_data")
-        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["table"], "flow_entity")
+        self.assertEquals(packet["primary_key"], "43")
         self.assertEquals(packet["type_of_change"], "CREATE")
 
-        data.name = "name2"
-        await database_sync_to_async(data.save)()
-        await propagate_data_signal(CHANGE_TYPE_UPDATE)
+        entity.name = "name2"
+        await database_sync_to_async(entity.save)()
+        await propagate_entity_signal(CHANGE_TYPE_UPDATE)
         packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_data")
-        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["table"], "flow_entity")
+        self.assertEquals(packet["primary_key"], "43")
         self.assertEquals(packet["type_of_change"], "UPDATE")
 
         # Unsubscribe from updates.
@@ -225,23 +206,23 @@ class ObserverTestCase(TransactionTestCase):
             text_data=json.dumps(
                 {
                     "action": "unsubscribe",
-                    "table": Data._meta.db_table,
+                    "table": Entity._meta.db_table,
                     "type_of_change": "UPDATE",
-                    "primary_key": 42,
+                    "primary_key": "43",
                 }
             )
         )
         await self.await_subscription_count(2)
 
-        data.name = "name2"
-        await database_sync_to_async(data.save)()
+        entity.name = "name2"
+        await database_sync_to_async(entity.save)()
         await self.assert_empty_channel(channel)
 
-        await database_sync_to_async(data.delete)()
-        await propagate_data_signal(CHANGE_TYPE_DELETE)
+        await database_sync_to_async(entity.delete)()
+        await propagate_entity_signal(CHANGE_TYPE_DELETE)
         packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_data")
-        self.assertEquals(packet["primary_key"], "42")
+        self.assertEquals(packet["table"], "flow_entity")
+        self.assertEquals(packet["primary_key"], "43")
         self.assertEquals(packet["type_of_change"], "DELETE")
 
         # The observers should be deleted after the resource.
@@ -249,7 +230,7 @@ class ObserverTestCase(TransactionTestCase):
 
         await client.disconnect()
 
-    async def atest_remove_observers_after_socket_close(self):
+    async def test_remove_observers_after_socket_close(self):
         client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
         client.scope["user"] = self.user_alice
         connected, _ = await client.connect()
@@ -269,7 +250,7 @@ class ObserverTestCase(TransactionTestCase):
         await client.disconnect()
         await self.await_subscription_count(0)
 
-    async def atest_observe_table(self):
+    async def test_observe_table(self):
         # Create a subscription to the Data table.
         @database_sync_to_async
         def subscribe():
@@ -349,7 +330,7 @@ class ObserverTestCase(TransactionTestCase):
         # Assert subscription didn't delete because Data got deleted.
         await self.await_subscription_count(2)
 
-    async def atest_change_permission_group(self):
+    async def test_change_permission_group(self):
 
         # Create a Data object visible to Bob.
         @database_sync_to_async
@@ -413,10 +394,7 @@ class ObserverTestCase(TransactionTestCase):
 
         await self.assert_empty_channel(channel)
 
-        # Assert Bob is no longer subscribed to changes.
-        await self.await_subscription_count(0)
-
-    async def atest_modify_permissions(self):
+    async def test_modify_permissions(self):
         # Create a new Data object.
         @database_sync_to_async
         def create_data():

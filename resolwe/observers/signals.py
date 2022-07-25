@@ -64,7 +64,6 @@ def notify(instance, change_type):
     )
     print("someboy is notifying", observers, "about", change_type, "of", instance)
     # Forward the message to the appropriate groups.
-    channel_layer = get_channel_layer()
     for observer in observers:
         has_permission = (
             type(instance)
@@ -75,13 +74,23 @@ def notify(instance, change_type):
         if not has_permission:
             continue
 
-        group = GROUP_SESSIONS.format(session_id=observer.session_id)
-        print("uwu sending", change_type)
-        transaction.on_commit(
-            lambda: async_to_sync(channel_layer.send)(
-                group, notification(instance, change_type)
-            )
-        )
+        notify2(observer.session_id, instance, change_type)
+
+
+def notify2(session_id, instance, change_type):
+    channel = GROUP_SESSIONS.format(session_id=session_id)
+    print("uwu sending", change_type)
+
+    # Define a callback, but save variable values
+    def trigger(
+        channel_layer=get_channel_layer(),
+        channel=channel,
+        instance=instance,
+        change_type=change_type,
+    ):
+        async_to_sync(channel_layer.send)(channel, notification(instance, change_type))
+
+    transaction.on_commit(trigger)
 
 
 @dispatch.receiver(model_signals.post_save)
@@ -107,7 +116,7 @@ def observe_model_deletion(sender, instance, **kwargs):
 
 
 @dispatch.receiver(model_signals.pre_save)
-def detect_permission_change(sender, instance, deleted=False, **kwargs):
+def detect_permission_change(sender, instance, **kwargs):
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -144,7 +153,8 @@ def detect_permission_change(sender, instance, deleted=False, **kwargs):
             "is being",
             "added" if instance._state.adding else "modified",
         )
-        # created is always False; use instance._state.adding
+
+        # Create signals will be caught when the PermissionModel is added.
         if instance._state.adding:
             return
 
@@ -198,10 +208,4 @@ def announce_permission_changes(instance, gains, losses):
             .distinct()
         )
         for session_id in session_ids:
-            channel = GROUP_SESSIONS.format(session_id=session_id)
-            print("uwu sending", change_type)
-            transaction.on_commit(
-                lambda: async_to_sync(channel_layer.send)(
-                    channel, notification(instance, change_type)
-                )
-            )
+            notify2(session_id, instance, change_type)
