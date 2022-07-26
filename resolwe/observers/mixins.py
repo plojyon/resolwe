@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth import get_user_model
 
 from rest_framework import exceptions, mixins, status, viewsets
@@ -16,7 +18,7 @@ class ObservableMixin:
 
         if pk is not None:
             if not model.objects.filter_for_user(request.user).filter(pk=pk).exists():
-                resp = {"error": "Item does not exist"}
+                resp = json.dumps({"error": "Item does not exist"})
                 return Response(resp, status=status.HTTP_400_BAD_REQUEST)
 
         subscription_ids = []
@@ -29,7 +31,7 @@ class ObservableMixin:
                 user=request.user,
             )
             subscription_ids.append(observer.subscription_id)
-        return Response(str(subscription_ids))
+        return Response(json.dumps(subscription_ids))
 
     @action(detail=True, methods=["post"], url_path="subscribe")
     def subscribe_detail(self, request, pk=None):
@@ -44,7 +46,7 @@ class ObservableMixin:
     def unsubscribe(self, subscription_id=None):
         """Unregister a subscription."""
         if subscription_id is None:
-            resp = {"error": "Missing subscription_id"}
+            resp = json.dumps({"error": "Missing subscription_id"})
             return Response(resp, status=status.HTTP_400_BAD_REQUEST)
         Observer.objects.filter(subscription_id=subscription_id).delete()
         return Response()
