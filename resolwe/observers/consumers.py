@@ -44,13 +44,13 @@ class ClientConsumer(JsonWebsocketConsumer):
 
     def observers_item_update(self, msg):
         """Called when an item update is received."""
-        observable_ids = list(
+        subscription_ids = list(
             Observer.get_interested(
                 table=msg["table"],
                 resource_pk=msg["primary_key"],
                 change_type=msg["type_of_change"],
             )
-            .values_list("observable", flat=True)
+            .values_list("subscription_id", flat=True)
             .distinct()
         )
 
@@ -66,10 +66,10 @@ class ClientConsumer(JsonWebsocketConsumer):
             if observer.exists():
                 observer.delete()
 
-        for observable_id in observable_ids:
+        for subscription_id in subscription_ids:
             self.send_json(
                 {
-                    "observable": observable_id,
+                    "subscription_id": subscription_id,
                     "primary_key": msg["primary_key"],
                     "type_of_change": msg["type_of_change"],
                 }

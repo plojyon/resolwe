@@ -46,7 +46,9 @@ class Observer(models.Model):
     # ID of the websocket session (can have multiple observers)
     session_id = models.CharField(max_length=100)
     # Unique ID for the client to remember which subscription a signal belongs to
-    observable = models.CharField(max_length=32, unique=True, default=get_random_hash)
+    subscription_id = models.CharField(
+        max_length=32, unique=True, default=get_random_hash
+    )
 
     @classmethod
     def get_interested(cls, table, resource_pk=None, change_type=None):

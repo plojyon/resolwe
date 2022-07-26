@@ -546,9 +546,10 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
         )
 
-    def test_subscribe(self):
+    def test_subscribe_unsubscribe(self):
         resp = self._get_list(user=self.user_alice, query_params={"session_id": "test"})
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(json.loads(resp.data)), 2)
         self.assertEqual(Observer.objects.count(), 2)
         self.assertEqual(
             Observer.objects.filter(
@@ -573,6 +574,7 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             42, user=self.user_alice, query_params={"session_id": "test"}
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(json.loads(resp.data)), 2)
         self.assertEqual(Observer.objects.count(), 4)
         self.assertEqual(
             Observer.objects.filter(
@@ -592,6 +594,12 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             ).count(),
             1,
         )
+
+        resp = self._get_detail(
+            42, user=self.user_alice, query_params={"session_id": "test"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(Observer.objects.count(), 4)
 
     # def test_subscribe_no_auth(self):
     #     resp = self._get_detail(42, query_params={"session_id": "test"})
