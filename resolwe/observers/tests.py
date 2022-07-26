@@ -31,25 +31,6 @@ from .protocol import (
 )
 
 
-class ConnectionTestCase(TestCase):
-    """Tests for verifying the correctness of the Websocket connection."""
-
-    def setUp(self):
-        super().setUp()
-        self.client_consumer = URLRouter(
-            [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
-        )
-
-    async def test_ws_no_auth(self):
-        client = WebsocketCommunicator(self.client_consumer, "/ws/test-session")
-
-        connected, details = await client.connect()
-        self.assertFalse(connected)
-        self.assertEquals(details, 3000)  # code 3000 - unauthorized
-
-        await client.disconnect()
-
-
 class ObserverTestCase(TransactionTestCase):
     def setUp(self):
         super().setUp()
@@ -58,7 +39,7 @@ class ObserverTestCase(TransactionTestCase):
             username="alice",
             email="alice@test.com",
             first_name="Ana",
-            last_name="Ariana",
+            last_name="Banana",
         )
         self.user_bob = get_user_model().objects.create(
             username="capital-bob",
@@ -71,7 +52,7 @@ class ObserverTestCase(TransactionTestCase):
         )
 
         self.client_consumer = URLRouter(
-            [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
+            [path("ws/<slug:session_id>", ClientConsumer().as_asgi())]
         )
 
     async def clear_channel(self, channel):
@@ -108,18 +89,17 @@ class ObserverTestCase(TransactionTestCase):
 
         @database_sync_to_async
         def get_subscription_count():
-            return Observer.objects.filter(session_id="session_28946").count()
+            return Observer.objects.filter(session_id="test_session").count()
 
         async with async_timeout.timeout(1):
             while await get_subscription_count() != count:
                 await asyncio.sleep(0.01)
 
-    async def test_ws_subscribe_unsubscribe(self):
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+    async def test_websocket_subscribe_unsubscribe(self):
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         await self.clear_channel(channel)
 
-        client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
-        client.scope["user"] = self.user_alice
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         connected, _ = await client.connect()
         self.assertTrue(connected)
 
@@ -140,38 +120,19 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_subscription_count(0)
 
         # Subscribe to updates.
-        await client.send_to(
-            text_data=json.dumps(
-                {
-                    "action": "subscribe",
-                    "table": Entity._meta.db_table,
-                    "type_of_change": "UPDATE",
-                    "primary_key": 43,
-                }
-            )
-        )
-        await client.send_to(
-            text_data=json.dumps(
-                {
-                    "action": "subscribe",
-                    "table": Entity._meta.db_table,
-                    "type_of_change": "CREATE",
-                    "primary_key": 43,
-                }
-            )
-        )
-        await client.send_to(
-            text_data=json.dumps(
-                {
-                    "action": "subscribe",
-                    "table": Entity._meta.db_table,
-                    "type_of_change": "DELETE",
-                    "primary_key": 43,
-                }
-            )
-        )
-        # We have to wait for the subscriptions to register
-        await self.await_subscription_count(3)
+        @database_sync_to_async
+        def subscribe():
+            args = {
+                "resource_pk": 43,
+                "table": Entity._meta.db_table,
+                "user": self.user_alice,
+                "session_id": "test_session",
+            }
+            Observer.objects.create(change_type="CREATE", **args)
+            Observer.objects.create(change_type="UPDATE", **args)
+            Observer.objects.create(change_type="DELETE", **args)
+
+        await subscribe()
 
         # Create an Entity object.
         @database_sync_to_async
@@ -189,7 +150,6 @@ class ObserverTestCase(TransactionTestCase):
 
         await propagate_entity_signal(CHANGE_TYPE_CREATE)
         packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_entity")
         self.assertEquals(packet["primary_key"], "43")
         self.assertEquals(packet["type_of_change"], "CREATE")
 
@@ -197,21 +157,15 @@ class ObserverTestCase(TransactionTestCase):
         await database_sync_to_async(entity.save)()
         await propagate_entity_signal(CHANGE_TYPE_UPDATE)
         packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_entity")
         self.assertEquals(packet["primary_key"], "43")
         self.assertEquals(packet["type_of_change"], "UPDATE")
 
         # Unsubscribe from updates.
-        await client.send_to(
-            text_data=json.dumps(
-                {
-                    "action": "unsubscribe",
-                    "table": Entity._meta.db_table,
-                    "type_of_change": "UPDATE",
-                    "primary_key": "43",
-                }
-            )
-        )
+        @database_sync_to_async
+        def unsubscribe():
+            Observer.objects.filter(resource_pk=43, change_type="UPDATE").delete()
+
+        await unsubscribe()
         await self.await_subscription_count(2)
 
         entity.name = "name2"
@@ -221,7 +175,6 @@ class ObserverTestCase(TransactionTestCase):
         await database_sync_to_async(entity.delete)()
         await propagate_entity_signal(CHANGE_TYPE_DELETE)
         packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["table"], "flow_entity")
         self.assertEquals(packet["primary_key"], "43")
         self.assertEquals(packet["type_of_change"], "DELETE")
 
@@ -231,21 +184,22 @@ class ObserverTestCase(TransactionTestCase):
         await client.disconnect()
 
     async def test_remove_observers_after_socket_close(self):
-        client = WebsocketCommunicator(self.client_consumer, "/ws/session_28946")
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         client.scope["user"] = self.user_alice
         connected, _ = await client.connect()
         self.assertTrue(connected)
 
-        await client.send_to(
-            text_data=json.dumps(
-                {
-                    "action": "subscribe",
-                    "table": Data._meta.db_table,
-                    "type_of_change": "UPDATE",
-                    "primary_key": 42,
-                }
+        @database_sync_to_async
+        def subscribe():
+            Observer.objects.create(
+                table=Data._meta.db_table,
+                change_type="UPDATE",
+                resource_pk=42,
+                user=self.user_alice,
+                session_id="test_session",
             )
-        )
+
+        await subscribe()
         await self.await_subscription_count(1)
         await client.disconnect()
         await self.await_subscription_count(0)
@@ -258,14 +212,14 @@ class ObserverTestCase(TransactionTestCase):
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_CREATE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_alice,
             )
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_DELETE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_alice,
             )
 
@@ -296,7 +250,7 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -320,7 +274,7 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -331,6 +285,9 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_subscription_count(2)
 
     async def test_change_permission_group(self):
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test-session")
+        connected, details = await client.connect()
+        self.assertTrue(connected)
 
         # Create a Data object visible to Bob.
         @database_sync_to_async
@@ -355,14 +312,14 @@ class ObserverTestCase(TransactionTestCase):
                 table=Data._meta.db_table,
                 resource_pk=42,
                 change_type=CHANGE_TYPE_UPDATE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=42,
                 change_type=CHANGE_TYPE_DELETE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
 
@@ -387,7 +344,7 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -416,21 +373,21 @@ class ObserverTestCase(TransactionTestCase):
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_CREATE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_UPDATE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_DELETE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
 
@@ -454,7 +411,7 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -478,7 +435,7 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -493,21 +450,21 @@ class ObserverTestCase(TransactionTestCase):
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_CREATE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_UPDATE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
             Observer.objects.create(
                 table=Data._meta.db_table,
                 resource_pk=None,
                 change_type=CHANGE_TYPE_DELETE,
-                session_id="session_28946",
+                session_id="test_session",
                 user=self.user_bob,
             )
 
@@ -530,7 +487,7 @@ class ObserverTestCase(TransactionTestCase):
         data = await create_data()
 
         # Assert we don't detect creations (Bob doesn't have permissions).
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         await self.assert_empty_channel(channel)
 
         # Delete the Data object.
@@ -541,104 +498,182 @@ class ObserverTestCase(TransactionTestCase):
         await delete_data(data)
 
         # Assert we don't detect deletions.
-        channel = GROUP_SESSIONS.format(session_id="session_28946")
+        channel = GROUP_SESSIONS.format(session_id="test_session")
         await self.assert_empty_channel(channel)
 
         # Assert subscription didn't delete.
         await self.await_subscription_count(3)
 
-    # TODO: make/modify/delete obj with(out) permissions on an observed table
-    # async def test_double_subscription(self):
-    # async def test_subscribe_to_forbidden_object(self):
-    # TODO: assert subscription fails
-    # async def test_subscribe_to_nonexistent_object(self):
-    # TODO: assert subscription fails
 
-    # async def test_0(self):
-    #     pass
-    #
-    # async def test_1(self):
-    #     pass
-    #
-    # async def test_2(self):
-    #     pass
-    #
-    # async def test_3(self):
-    #     pass
-    #
-    # async def test_4(self):
-    #     pass
-    #
-    # async def test_5(self):
-    #     pass
-    #
-    # async def test_6(self):
-    #     pass
-    #
-    # async def test_7(self):
-    #     pass
-    #
-    # async def test_8(self):
-    #     pass
-    #
-    # async def test_9(self):
-    #     pass
-    #
-    # async def test_notifications(self):
-    #     return
-    #
-    #     # Create a single model instance.
-    #     @database_sync_to_async
-    #     def create_model():
-    #         return Data.objects.create(
-    #             name="Data object",
-    #             contributor=self.user_alice,
-    #             process=self.process,
-    #             # descriptor_schema=self.descriptor_schema,
-    #         )
-    #
-    #     data = await create_model()
-    #     # TODO: assert existance of an observer, has 1 subscriber
+from resolwe.flow.views import DataViewSet
+from resolwe.test import TransactionResolweAPITestCase
+from rest_framework import status
+from rest_framework.reverse import reverse
+from django.contrib.auth.models import AnonymousUser
 
 
-# async def test_bla():
-#
-#     async with async_timeout.timeout(1):
-#         # Check that ORM signal was generated.
-#         notify = await channel_layer.receive(CHANNEL_MAIN)
-#         assert notify["type"] == TYPE_ORM_NOTIFY
-#         assert notify["kind"] == ORM_NOTIFY_KIND_CREATE
-#         assert notify["primary_key"] == str(primary_key)
-#
-#         # Propagate notification to worker.
-#         await main.send_input(notify)
-#
-#         # Check that observer evaluation was requested.
-#         notify = await channel_layer.receive(CHANNEL_WORKER)
-#         assert notify["type"] == TYPE_EVALUATE
-#         assert notify["observer"] == observer_id
-#
-#         # Propagate notification to worker.
-#         await worker.send_input(notify)
-#         response = await client.receive_json_from()
-#         assert response["msg"] == "added"
-#         assert response["primary_key"] == "id"
-#         assert response["order"] == 0
-#         assert response["item"] == {
-#             "id": primary_key,
-#             "enabled": True,
-#             "name": "hello world",
-#         }
-#
-#     # No other messages should be sent.
-#     assert await client.receive_nothing() is True
-#     await client.disconnect()
-#
-#     # Ensure that subscriber has been removed.
-#     await assert_subscribers(0)
-#
-#     async with async_timeout.timeout(1):
-#         # Run observer again and it should skip evaluation because there are no more subscribers.
-#         await worker.send_input({"type": TYPE_EVALUATE, "observer": observer_id})
-#
-#     assert await worker.receive_nothing() is True
+class ObserverAPITestCase(TransactionResolweAPITestCase):
+    def setUp(self):
+        self.viewset = DataViewSet
+        self.resource_name = "data-subscribe"
+        super().setUp()
+        self.list_view = self.viewset.as_view({"get": "subscribe_list"})
+        self.detail_view = self.viewset.as_view({"get": "subscribe_detail"})
+
+        user_model = get_user_model()
+        self.user_alice = user_model.objects.create(
+            username="alice",
+            email="alice@test.com",
+            first_name="Ana",
+            last_name="Banana",
+        )
+        self.user_bob = user_model.objects.create(
+            username="capital-bob",
+            email="bob@bob.bob",
+            first_name="Capital",
+            last_name="Bobnik",
+        )
+        self.process = Process.objects.create(
+            name="Dummy process", contributor=self.user_alice
+        )
+        Data.objects.create(
+            pk=42,
+            name="Test data",
+            slug="test-data",
+            contributor=self.user_alice,
+            process=self.process,
+            size=0,
+        )
+        self.client_consumer = URLRouter(
+            [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
+        )
+
+    def test_subscribe(self):
+        resp = self._get_list(user=self.user_alice, query_params={"session_id": "test"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(Observer.objects.count(), 2)
+        self.assertEqual(
+            Observer.objects.filter(
+                change_type="CREATE",
+                session_id="test",
+                resource_pk=None,
+                table="flow_data",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Observer.objects.filter(
+                change_type="DELETE",
+                session_id="test",
+                resource_pk=None,
+                table="flow_data",
+            ).count(),
+            1,
+        )
+
+        resp = self._get_detail(
+            42, user=self.user_alice, query_params={"session_id": "test"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(Observer.objects.count(), 4)
+        self.assertEqual(
+            Observer.objects.filter(
+                change_type="UPDATE",
+                session_id="test",
+                resource_pk=42,
+                table="flow_data",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Observer.objects.filter(
+                change_type="DELETE",
+                session_id="test",
+                resource_pk=42,
+                table="flow_data",
+            ).count(),
+            1,
+        )
+
+    # def test_subscribe_no_auth(self):
+    #     resp = self._get_detail(42, query_params={"session_id": "test"})
+    #     # Data pk=42 isn't public, so we can't subscribe
+    #     self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+    #     self.assertEqual(Observer.objects.count(), 0)
+    #
+    #     public_data = Data.objects.create(
+    #         pk=31,
+    #         name="Public data",
+    #         slug="public-data",
+    #         contributor=self.user_alice,
+    #         process=self.process,
+    #         size=0,
+    #     )
+    #     public_data.set_permission(Permission.VIEW, AnonymousUser())
+    #
+    #     resp = self._get_detail(31, query_params={"session_id": "test"})
+    #     # Data pk=31 is public, so we can subscribe
+    #     self.assertEqual(resp.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(Observer.objects.count(), 2)
+
+    def test_subscribe_to_forbidden_object(self):
+        resp = self._get_detail(
+            42, user=self.user_bob, query_params={"session_id": "test"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Observer.objects.count(), 0)
+
+    def test_subscribe_to_nonexistent_object(self):
+        resp = self._get_detail(
+            111, user=self.user_alice, query_params={"session_id": "test"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Observer.objects.count(), 0)
+
+    def test_subscription_deletes_after_model_deletes(self):
+        # Create another Data object.
+        data = Data.objects.create(
+            pk=55,
+            name="Test data 2",
+            slug="test-data-2",
+            contributor=self.user_alice,
+            process=self.process,
+            size=0,
+        )
+
+        # Subscribe to it.
+        resp = self._get_detail(
+            55, user=self.user_alice, query_params={"session_id": "test"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(Observer.objects.count(), 2)
+
+        data.delete()
+
+        # Assert we're not subscribed to nonexistent objects
+        self.assertEqual(Observer.objects.count(), 0)
+
+    def test_subscription_deletes_after_permissions_lost(self):
+        # Create another Data object by Alice, visible to Bob.
+        data = Data.objects.create(
+            pk=55,
+            name="Test data 2",
+            slug="test-data-2",
+            contributor=self.user_alice,
+            process=self.process,
+            size=0,
+        )
+        data.set_permission(Permission.VIEW, self.user_bob)
+
+        # Subscribe to it by Bob.
+        resp = self._get_detail(
+            55, user=self.user_bob, query_params={"session_id": "test"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(Observer.objects.count(), 2)
+
+        # Remove visibility for Bob
+        data.set_permission(Permission.NONE, self.user_bob)
+
+        # Assert we're not subscribed to hidden objects
+        self.assertEqual(Observer.objects.count(), 0)

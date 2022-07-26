@@ -15,15 +15,12 @@ from .protocol import (
     TYPE_ITEM_UPDATE,
 )
 
-# def _queryset_factory(fallback=models.QuerySet):
-#     return type(
-#         "observable_qs",
-#         (fallback,),
-#         {
-#             # "save": lambda self, *args, **kwargs: _observed_save(self, *args, **kwargs),
-#             # "objects": _queryset_factory(cls.objects),
-#         },
-#     )
+import random
+
+
+def get_random_hash():
+    """Generate a random 256-bit number as a hex string."""
+    return hex(random.randint(0, 2**128))[2:]
 
 
 class Observer(models.Model):
@@ -35,17 +32,21 @@ class Observer(models.Model):
         (CHANGE_TYPE_DELETE, "delete"),
     )
 
-    # table of the observed resource
+    # Table of the observed resource
     table = models.CharField(max_length=100)
-    # primary key of the observed resource (null if watching the whole table)
+    # Primary key of the observed resource (null if watching the whole table)
     resource_pk = models.IntegerField(null=True)
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
-    session_id = models.CharField(max_length=100)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
     )
     created = models.DateTimeField(auto_now_add=True)
+
+    # ID of the websocket session (can have multiple observers)
+    session_id = models.CharField(max_length=100)
+    # Unique ID for the client to remember which subscription a signal belongs to
+    observable = models.CharField(max_length=32, unique=True, default=get_random_hash)
 
     @classmethod
     def get_interested(cls, table, resource_pk=None, change_type=None):

@@ -20,7 +20,7 @@ application = ProtocolTypeRouter(
             [
                 # To change the prefix, you can import ClientConsumer in your custom
                 # Channels routing definitions instead of using these defaults.
-                path("ws/<slug:subscriber_id>", ClientConsumer.as_asgi())
+                path("ws/<slug:session_id>", ClientConsumer.as_asgi())
             ]
         ),
     }

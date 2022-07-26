@@ -62,7 +62,7 @@ def notify(instance, change_type):
         table=instance._meta.db_table,
         resource_pk=instance.pk,
     )
-    print("someboy is notifying", observers, "about", change_type, "of", instance)
+
     # Forward the message to the appropriate groups.
     for observer in observers:
         has_permission = (
@@ -79,7 +79,6 @@ def notify(instance, change_type):
 
 def notify2(session_id, instance, change_type):
     channel = GROUP_SESSIONS.format(session_id=session_id)
-    print("uwu sending", change_type)
 
     # Define a callback, but save variable values
     def trigger(
@@ -111,7 +110,6 @@ def observe_model_deletion(sender, instance, **kwargs):
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
-
     notify(instance, CHANGE_TYPE_DELETE)
 
 
@@ -122,7 +120,6 @@ def detect_permission_change(sender, instance, **kwargs):
         return
 
     if isinstance(instance, PermissionModel):
-        print("PM", instance, "owo")
         gains = set()
         losses = set()
         if instance.user is not None:
@@ -147,13 +144,6 @@ def detect_permission_change(sender, instance, **kwargs):
                 announce_permission_changes(inst, gains, losses)
 
     elif isinstance(instance, PermissionObject):
-        print(
-            "PO",
-            instance,
-            "is being",
-            "added" if instance._state.adding else "modified",
-        )
-
         # Create signals will be caught when the PermissionModel is added.
         if instance._state.adding:
             return
@@ -161,11 +151,10 @@ def detect_permission_change(sender, instance, **kwargs):
         saved_instance = type(instance).objects.get(pk=instance.pk)
         old_perm_group = instance.permission_group
         new_perm_group = saved_instance.permission_group
-        print("perm group comparison", old_perm_group.pk, "vs", new_perm_group.pk)
+
         # In case of no changes, return.
         if old_perm_group.pk == new_perm_group.pk:
             return
-        print("i survived")
 
         # Calculate who gained and lost permissions to the object.
         gains = set()
@@ -189,7 +178,6 @@ def announce_permission_changes(instance, gains, losses):
     Given an instance and an array of user_ids who gained/lost permissions for
     it, all relevant observers will be notified of instance creation/deletion.
     """
-    print("someboy is announcing", (gains, losses), "on", instance)
     channel_layer = get_channel_layer()
     for change_type, user_ids in (
         (CHANGE_TYPE_CREATE, gains),
