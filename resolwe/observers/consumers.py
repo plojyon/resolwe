@@ -14,7 +14,7 @@ class ClientConsumer(JsonWebsocketConsumer):
         session_id = self.scope["url_route"]["kwargs"]["session_id"]
         self.session_id = session_id
 
-        # Accept the connection
+        # Accept the connection.
         super().websocket_connect(message)
 
     @property
