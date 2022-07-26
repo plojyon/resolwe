@@ -1,17 +1,19 @@
+"""Mixins for Observable ViewSets."""
 import json
 
-from django.contrib.auth import get_user_model
-
-from rest_framework import exceptions, mixins, status, viewsets
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
-from resolwe.flow.models import Data, DescriptorSchema, Process
 
 from .models import Observer
 
 
 class ObservableMixin:
+    """A Mixin to make a model ViewSet observable.
+
+    Adds the subscribe and unsubscribe endpoints.
+    """
+
     def subscribe(self, request, pk=None, change_types=()):
         """Register an Observer for a resource."""
         model = self.get_queryset().model

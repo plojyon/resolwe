@@ -1,22 +1,11 @@
 """The model Observer model."""
 import random
 
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
-
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
 
-from resolwe.permissions.models import PermissionModel
-
-from .protocol import (
-    CHANGE_TYPE_CREATE,
-    CHANGE_TYPE_DELETE,
-    CHANGE_TYPE_UPDATE,
-    GROUP_SESSIONS,
-    TYPE_ITEM_UPDATE,
-)
+from .protocol import CHANGE_TYPE_CREATE, CHANGE_TYPE_DELETE, CHANGE_TYPE_UPDATE
 
 
 def get_random_hash():
@@ -61,6 +50,7 @@ class Observer(models.Model):
         return cls.objects.filter(query)
 
     def __str__(self):
+        """Format the object representation."""
         return "table={table} resource_pk={res} change={change} session_id={session_id}".format(
             table=self.table,
             res=self.resource_pk,
@@ -69,4 +59,6 @@ class Observer(models.Model):
         )
 
     class Meta:
+        """Meta parameters for the Observer model."""
+
         unique_together = ("table", "resource_pk", "change_type", "session_id")

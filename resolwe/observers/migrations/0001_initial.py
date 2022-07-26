@@ -16,19 +16,52 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Observer',
+            name="Observer",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('table', models.CharField(max_length=100)),
-                ('resource_pk', models.IntegerField(null=True)),
-                ('change_type', models.CharField(choices=[('CREATE', 'create'), ('UPDATE', 'update'), ('DELETE', 'delete')], max_length=6)),
-                ('created', models.DateTimeField(auto_now_add=True)),
-                ('session_id', models.CharField(max_length=100)),
-                ('subscription_id', models.CharField(default=resolwe.observers.models.get_random_hash, max_length=32, unique=True)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("table", models.CharField(max_length=100)),
+                ("resource_pk", models.IntegerField(null=True)),
+                (
+                    "change_type",
+                    models.CharField(
+                        choices=[
+                            ("CREATE", "create"),
+                            ("UPDATE", "update"),
+                            ("DELETE", "delete"),
+                        ],
+                        max_length=6,
+                    ),
+                ),
+                ("created", models.DateTimeField(auto_now_add=True)),
+                ("session_id", models.CharField(max_length=100)),
+                (
+                    "subscription_id",
+                    models.CharField(
+                        default=resolwe.observers.models.get_random_hash,
+                        max_length=32,
+                        unique=True,
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'unique_together': {('table', 'resource_pk', 'change_type', 'session_id')},
+                "unique_together": {
+                    ("table", "resource_pk", "change_type", "session_id")
+                },
             },
         ),
     ]

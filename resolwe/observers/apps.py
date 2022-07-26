@@ -8,4 +8,6 @@ class BaseConfig(AppConfig):
     name = "resolwe.observers"
 
     def ready(self):
-        from . import signals
+        """Application initialization."""
+        # Register signals handlers
+        from . import signals  # noqa: F401

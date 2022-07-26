@@ -1,11 +1,9 @@
 """Routing rules for websocket connections."""
-from channels.routing import ChannelNameRouter, ProtocolTypeRouter, URLRouter
+from channels.routing import ProtocolTypeRouter, URLRouter
 
 from django.urls import path
 
-from .consumers import ClientConsumer, MainConsumer, WorkerConsumer
-from .protocol import CHANNEL_WORKER
-from .views import QueryObserverSubscribeView, QueryObserverUnsubscribeView
+from .consumers import ClientConsumer
 
 application = ProtocolTypeRouter(
     {

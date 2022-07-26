@@ -1,24 +1,13 @@
 """ORM signal handlers."""
-import logging
 
 from asgiref.sync import async_to_sync
-from channels.exceptions import ChannelFull
 from channels.layers import get_channel_layer
 
 from django import dispatch
 from django.db import transaction
-from django.db.models import Q
 from django.db.models import signals as model_signals
 
-from django_priority_batch import PrioritizedBatcher
-
-from resolwe.flow.models import Data
-from resolwe.permissions.models import (
-    Permission,
-    PermissionGroup,
-    PermissionModel,
-    PermissionObject,
-)
+from resolwe.permissions.models import PermissionModel, PermissionObject
 
 from .models import Observer
 from .protocol import (

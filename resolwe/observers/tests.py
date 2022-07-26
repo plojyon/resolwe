@@ -4,26 +4,20 @@ import asyncio
 import json
 
 import async_timeout
-from asgiref.sync import async_to_sync
-from channels.auth import AuthMiddlewareStack
 from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from channels.routing import URLRouter
-from channels.testing import ApplicationCommunicator, WebsocketCommunicator
+from channels.testing import WebsocketCommunicator
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AnonymousUser
-from django.db import transaction
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 from django.urls import path
 
 from rest_framework import status
-from rest_framework.reverse import reverse
-from rest_framework.test import force_authenticate
 
-from resolwe.flow.models import Data, DescriptorSchema, Entity, Process
+from resolwe.flow.models import Data, Entity, Process
 from resolwe.flow.views import DataViewSet
-from resolwe.permissions.models import Permission, PermissionGroup, PermissionModel
+from resolwe.permissions.models import Permission, PermissionGroup
 from resolwe.test import TransactionResolweAPITestCase
 
 from .consumers import ClientConsumer
