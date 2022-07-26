@@ -205,6 +205,8 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_subscription_count(0)
 
     async def test_observe_table(self):
+        channel = GROUP_SESSIONS.format(session_id="test_session")
+
         # Create a subscription to the Data table.
         @database_sync_to_async
         def subscribe():
@@ -250,7 +252,6 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -274,7 +275,6 @@ class ObserverTestCase(TransactionTestCase):
             "model_name": Data._meta.object_name,
         }
 
-        channel = GROUP_SESSIONS.format(session_id="test_session")
         async with async_timeout.timeout(1):
             notify = await get_channel_layer().receive(channel)
         self.assertDictEqual(notify, message)
@@ -541,11 +541,12 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             [path("ws/<slug:subscriber_id>", ClientConsumer().as_asgi())]
         )
 
-    def test_subscribe_unsubscribe(self):
+    def test_subscribe(self):
+        # Subscribe to model updates.
         resp = self._get_list(user=self.user_alice, query_params={"session_id": "test"})
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(json.loads(resp.data)), 2)
-        self.assertEqual(Observer.objects.count(), 2)
+        self.assertEqual(len(json.loads(resp.data)), 1)
+        self.assertEqual(Observer.objects.count(), 1)
         self.assertEqual(
             Observer.objects.filter(
                 change_type="CREATE",
@@ -555,22 +556,14 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             ).count(),
             1,
         )
-        self.assertEqual(
-            Observer.objects.filter(
-                change_type="DELETE",
-                session_id="test",
-                resource_pk=None,
-                table="flow_data",
-            ).count(),
-            1,
-        )
 
+        # Subscribe to instance updates.
         resp = self._get_detail(
             42, user=self.user_alice, query_params={"session_id": "test"}
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(json.loads(resp.data)), 2)
-        self.assertEqual(Observer.objects.count(), 4)
+        self.assertEqual(Observer.objects.count(), 3)
         self.assertEqual(
             Observer.objects.filter(
                 change_type="UPDATE",
@@ -590,11 +583,13 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             1,
         )
 
+        # Re-subscribe to the same endpoint.
         resp = self._get_detail(
             42, user=self.user_alice, query_params={"session_id": "test"}
         )
+        # Assert we don't have duplicate observers.
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(Observer.objects.count(), 4)
+        self.assertEqual(Observer.objects.count(), 3)
 
     # def test_subscribe_no_auth(self):
     #     resp = self._get_detail(42, query_params={"session_id": "test"})

@@ -43,7 +43,7 @@ class ObservableMixin:
     @action(detail=False, methods=["post"], url_path="subscribe")
     def subscribe_list(self, request):
         """Subscribe to creations and deletions of a specific model."""
-        return self.subscribe(request, change_types=("CREATE", "DELETE"))
+        return self.subscribe(request, change_types=("CREATE",))
 
     def unsubscribe(self, subscription_id=None):
         """Unregister a subscription."""
