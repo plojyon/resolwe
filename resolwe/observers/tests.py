@@ -29,6 +29,11 @@ from .protocol import (
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
 )
+from resolwe.flow.views import DataViewSet
+from resolwe.test import TransactionResolweAPITestCase
+from rest_framework import status
+from rest_framework.reverse import reverse
+from django.contrib.auth.models import AnonymousUser
 
 
 class ObserverTestCase(TransactionTestCase):
@@ -505,13 +510,6 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_subscription_count(3)
 
 
-from resolwe.flow.views import DataViewSet
-from resolwe.test import TransactionResolweAPITestCase
-from rest_framework import status
-from rest_framework.reverse import reverse
-from django.contrib.auth.models import AnonymousUser
-
-
 class ObserverAPITestCase(TransactionResolweAPITestCase):
     def setUp(self):
         self.viewset = DataViewSet
@@ -628,52 +626,4 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
             111, user=self.user_alice, query_params={"session_id": "test"}
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(Observer.objects.count(), 0)
-
-    def test_subscription_deletes_after_model_deletes(self):
-        # Create another Data object.
-        data = Data.objects.create(
-            pk=55,
-            name="Test data 2",
-            slug="test-data-2",
-            contributor=self.user_alice,
-            process=self.process,
-            size=0,
-        )
-
-        # Subscribe to it.
-        resp = self._get_detail(
-            55, user=self.user_alice, query_params={"session_id": "test"}
-        )
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(Observer.objects.count(), 2)
-
-        data.delete()
-
-        # Assert we're not subscribed to nonexistent objects
-        self.assertEqual(Observer.objects.count(), 0)
-
-    def test_subscription_deletes_after_permissions_lost(self):
-        # Create another Data object by Alice, visible to Bob.
-        data = Data.objects.create(
-            pk=55,
-            name="Test data 2",
-            slug="test-data-2",
-            contributor=self.user_alice,
-            process=self.process,
-            size=0,
-        )
-        data.set_permission(Permission.VIEW, self.user_bob)
-
-        # Subscribe to it by Bob.
-        resp = self._get_detail(
-            55, user=self.user_bob, query_params={"session_id": "test"}
-        )
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(Observer.objects.count(), 2)
-
-        # Remove visibility for Bob
-        data.set_permission(Permission.NONE, self.user_bob)
-
-        # Assert we're not subscribed to hidden objects
         self.assertEqual(Observer.objects.count(), 0)
