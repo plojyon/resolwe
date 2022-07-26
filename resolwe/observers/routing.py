@@ -1,3 +1,4 @@
+"""Routing rules for websocket connections."""
 from channels.routing import ChannelNameRouter, ProtocolTypeRouter, URLRouter
 
 from django.urls import path
@@ -8,20 +9,9 @@ from .views import QueryObserverSubscribeView, QueryObserverUnsubscribeView
 
 application = ProtocolTypeRouter(
     {
-        # Subscription / unsubscription endpoint
-        "http": URLRouter(
-            [
-                path("subscribe", QueryObserverSubscribeView.as_view()),
-                path("unsubscribe", QueryObserverUnsubscribeView.as_view()),
-            ]
-        ),
-        # Client-facing consumers.
+        # Client-facing WebSocket Consumers.
         "websocket": URLRouter(
-            [
-                # To change the prefix, you can import ClientConsumer in your custom
-                # Channels routing definitions instead of using these defaults.
-                path("ws/<slug:session_id>", ClientConsumer.as_asgi())
-            ]
+            [path("ws/<slug:session_id>", ClientConsumer.as_asgi())]
         ),
     }
 )

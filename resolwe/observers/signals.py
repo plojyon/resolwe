@@ -1,3 +1,4 @@
+"""ORM signal handlers."""
 import logging
 
 from asgiref.sync import async_to_sync
@@ -20,21 +21,17 @@ from resolwe.permissions.models import (
 )
 
 from .models import Observer
-from .protocol import *
+from .protocol import (
+    CHANGE_TYPE_CREATE,
+    CHANGE_TYPE_DELETE,
+    CHANGE_TYPE_UPDATE,
+    GROUP_SESSIONS,
+    TYPE_ITEM_UPDATE,
+)
 
-# Global 'in migrations' flag to skip certain operations during migrations.
+# Global 'in migrations' flag to ignore signals during migrations.
+# Signals handlers that access the database will crash the migration process.
 IN_MIGRATIONS = False
-
-
-def notification(instance, change_type):
-    return {
-        "type": TYPE_ITEM_UPDATE,
-        "table": instance._meta.db_table,
-        "type_of_change": change_type,
-        "primary_key": str(instance.pk),
-        "app_label": instance._meta.app_label,
-        "model_name": instance._meta.object_name,
-    }
 
 
 @dispatch.receiver(model_signals.pre_migrate)
@@ -51,8 +48,8 @@ def model_post_migrate(*args, **kwargs):
     IN_MIGRATIONS = False
 
 
-def notify(instance, change_type):
-    """Register on_commit calls to notify interested observers of a change."""
+def route_instance_changes(instance, change_type):
+    """Route a notification about an instance change to the appropriate observers."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -74,26 +71,64 @@ def notify(instance, change_type):
         if not has_permission:
             continue
 
-        notify2(observer.session_id, instance, change_type)
+        # Register on_commit callbacks to send the signals.
+        send_notification(observer.session_id, instance, change_type)
 
 
-def notify2(session_id, instance, change_type):
-    channel = GROUP_SESSIONS.format(session_id=session_id)
+def route_permission_changes(instance, gains, losses):
+    """Route a notification about a permission change to the appropriate observers.
 
-    # Define a callback, but save variable values
+    Given an instance and a set of user_ids who gained/lost permissions for it,
+    all relevant observers will be notified of the instance's creation/deletion.
+    """
+    for change_type, user_ids in (
+        (CHANGE_TYPE_CREATE, gains),
+        (CHANGE_TYPE_DELETE, losses),
+    ):
+        # A shortcut if nothing actually changed.
+        if len(user_ids) == 0:
+            continue
+
+        # Find all sessions who have observers registered on this object.
+        session_ids = set(
+            Observer.get_interested(
+                table=instance._meta.db_table,
+                resource_pk=instance.pk,
+            )
+            .filter(user__in=user_ids)
+            .values_list("session_id", flat=True)
+            .distinct()
+        )
+
+        for session_id in session_ids:
+            send_notification(session_id, instance, change_type)
+
+
+def send_notification(session_id, instance, change_type):
+    """Register a callback to send a change notification on transaction commit."""
+    notification = {
+        "type": TYPE_ITEM_UPDATE,
+        "table": instance._meta.db_table,
+        "type_of_change": change_type,
+        "primary_key": str(instance.pk),
+        "app_label": instance._meta.app_label,
+        "model_name": instance._meta.object_name,
+    }
+
+    # Define a callback, but copy variable values.
     def trigger(
         channel_layer=get_channel_layer(),
-        channel=channel,
-        instance=instance,
-        change_type=change_type,
+        channel=GROUP_SESSIONS.format(session_id=session_id),
+        notification=notification,
     ):
-        async_to_sync(channel_layer.send)(channel, notification(instance, change_type))
+        async_to_sync(channel_layer.send)(channel, notification)
 
     transaction.on_commit(trigger)
 
 
 @dispatch.receiver(model_signals.post_save)
 def observe_model_modification(sender, instance, created=False, **kwargs):
+    """Receive model updates."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -102,19 +137,22 @@ def observe_model_modification(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    notify(instance, CHANGE_TYPE_UPDATE)
+    route_instance_changes(instance, CHANGE_TYPE_UPDATE)
 
 
 @dispatch.receiver(model_signals.pre_delete)
 def observe_model_deletion(sender, instance, **kwargs):
+    """Receive model deletions."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
-    notify(instance, CHANGE_TYPE_DELETE)
+
+    route_instance_changes(instance, CHANGE_TYPE_DELETE)
 
 
 @dispatch.receiver(model_signals.pre_save)
 def detect_permission_change(sender, instance, **kwargs):
+    """Receive permission updates."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -141,7 +179,7 @@ def detect_permission_change(sender, instance, **kwargs):
         # Find all relevant PermissionObjects and announce permission changes.
         for cls in PermissionObject.__subclasses__():
             for inst in cls.objects.filter(permission_group=instance.permission_group):
-                announce_permission_changes(inst, gains, losses)
+                route_permission_changes(inst, gains, losses)
 
     elif isinstance(instance, PermissionObject):
         # Create signals will be caught when the PermissionModel is added.
@@ -169,31 +207,4 @@ def detect_permission_change(sender, instance, **kwargs):
                 losses.add(observer.user)
 
         # Announce to relevant observers.
-        announce_permission_changes(instance, gains, losses)
-
-
-def announce_permission_changes(instance, gains, losses):
-    """Register on_commit calls to notify observers that permissions changed.
-
-    Given an instance and an array of user_ids who gained/lost permissions for
-    it, all relevant observers will be notified of instance creation/deletion.
-    """
-    channel_layer = get_channel_layer()
-    for change_type, user_ids in (
-        (CHANGE_TYPE_CREATE, gains),
-        (CHANGE_TYPE_DELETE, losses),
-    ):
-        if len(user_ids) == 0:
-            continue
-
-        session_ids = set(
-            Observer.get_interested(
-                table=instance._meta.db_table,
-                resource_pk=instance.pk,
-            )
-            .filter(user__in=user_ids)
-            .values_list("session_id", flat=True)
-            .distinct()
-        )
-        for session_id in session_ids:
-            notify2(session_id, instance, change_type)
+        route_permission_changes(instance, gains, losses)

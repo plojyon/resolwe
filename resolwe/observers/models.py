@@ -1,3 +1,6 @@
+"""The model Observer model."""
+import random
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
@@ -15,8 +18,6 @@ from .protocol import (
     TYPE_ITEM_UPDATE,
 )
 
-import random
-
 
 def get_random_hash():
     """Generate a random 256-bit number as a hex string."""
@@ -24,7 +25,7 @@ def get_random_hash():
 
 
 class Observer(models.Model):
-    """State of an observer."""
+    """State of a model observer."""
 
     CHANGE_TYPES = (
         (CHANGE_TYPE_CREATE, "create"),

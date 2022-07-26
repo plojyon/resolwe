@@ -1,16 +1,17 @@
 from django.contrib.auth import get_user_model
 
-from rest_framework import exceptions, mixins, viewsets
+from rest_framework import exceptions, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from resolwe.flow.models import Data, DescriptorSchema, Process
-from rest_framework import status
+
 from .models import Observer
 
 
 class ObservableMixin:
     def subscribe(self, request, pk=None, change_types=()):
+        """Register an Observer for a resource."""
         model = self.get_queryset().model
 
         if pk is not None:
@@ -32,13 +33,16 @@ class ObservableMixin:
 
     @action(detail=True, methods=["post"], url_path="subscribe")
     def subscribe_detail(self, request, pk=None):
+        """Subscribe to changes of a specific model instance."""
         return self.subscribe(request, pk=pk, change_types=("UPDATE", "DELETE"))
 
     @action(detail=False, methods=["post"], url_path="subscribe")
     def subscribe_list(self, request):
+        """Subscribe to creations and deletions of a specific model."""
         return self.subscribe(request, change_types=("CREATE", "DELETE"))
 
     def unsubscribe(self, subscription_id=None):
+        """Unregister a subscription."""
         if subscription_id is None:
             resp = {"error": "Missing subscription_id"}
             return Response(resp, status=status.HTTP_400_BAD_REQUEST)
@@ -47,8 +51,10 @@ class ObservableMixin:
 
     @action(detail=True, methods=["post"], url_path="unsubscribe")
     def unsubscribe_detail(self, request, pk=None):
+        """Unregister a subscription."""
         return self.unsubscribe(request.query_params.get("subscription_id", None))
 
     @action(detail=False, methods=["post"], url_path="unsubscribe")
     def unsubscribe_list(self, request):
+        """Unregister a subscription."""
         return self.unsubscribe(request.query_params.get("subscription_id", None))

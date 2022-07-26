@@ -62,7 +62,7 @@ class ClientConsumer(JsonWebsocketConsumer):
                 resource_pk=msg["primary_key"],
                 # change_type = Any,
             )
-            # Assure we don't stay subscribed to an illegal object
+            # Assure we don't stay subscribed to an illegal object.
             if observer.exists():
                 observer.delete()
 

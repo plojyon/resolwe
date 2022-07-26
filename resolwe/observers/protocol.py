@@ -1,3 +1,5 @@
+"""Constants used for Observer communication."""
+
 # Group used for individual sessions.
 GROUP_SESSIONS = "observers.session.{session_id}"
 

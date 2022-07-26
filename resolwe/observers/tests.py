@@ -1,4 +1,5 @@
-"""Tests for observers."""
+# pylint: disable=missing-docstring
+
 import asyncio
 import json
 
@@ -11,14 +12,19 @@ from channels.routing import URLRouter
 from channels.testing import ApplicationCommunicator, WebsocketCommunicator
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.db import transaction
 from django.test import TestCase, TransactionTestCase
 from django.urls import path
 
+from rest_framework import status
+from rest_framework.reverse import reverse
 from rest_framework.test import force_authenticate
 
 from resolwe.flow.models import Data, DescriptorSchema, Entity, Process
+from resolwe.flow.views import DataViewSet
 from resolwe.permissions.models import Permission, PermissionGroup, PermissionModel
+from resolwe.test import TransactionResolweAPITestCase
 
 from .consumers import ClientConsumer
 from .models import Observer
@@ -29,11 +35,6 @@ from .protocol import (
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
 )
-from resolwe.flow.views import DataViewSet
-from resolwe.test import TransactionResolweAPITestCase
-from rest_framework import status
-from rest_framework.reverse import reverse
-from django.contrib.auth.models import AnonymousUser
 
 
 class ObserverTestCase(TransactionTestCase):
