@@ -179,6 +179,10 @@ def detect_permission_change(sender, instance, **kwargs):
         old_perm_group = instance.permission_group
         new_perm_group = saved_instance.permission_group
 
+        # In case either PermissionGroup doesn't exist, return.
+        if old_perm_group is None or new_perm_group is None:
+            return
+
         # In case of no changes, return.
         if old_perm_group.pk == new_perm_group.pk:
             return
