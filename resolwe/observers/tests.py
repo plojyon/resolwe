@@ -62,7 +62,7 @@ class ObserverTestCase(TransactionTestCase):
             try:
                 async with async_timeout.timeout(0.01):
                     await channel_layer.receive(channel)
-            except asyncio.exceptions.TimeoutError:
+            except asyncio.TimeoutError:
                 break
 
     async def assert_and_propagate_signal(self, signal, channel, client):
@@ -80,7 +80,7 @@ class ObserverTestCase(TransactionTestCase):
     async def assert_empty_channel(self, channel):
         """Assert there are no messages queued in a given channel."""
         channel_layer = get_channel_layer()
-        with self.assertRaises(asyncio.exceptions.TimeoutError):
+        with self.assertRaises(asyncio.TimeoutError):
             async with async_timeout.timeout(0.01):
                 await channel_layer.receive(channel)
 
