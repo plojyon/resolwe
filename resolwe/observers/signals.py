@@ -3,6 +3,7 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from django.contrib.auth import get_user_model
 from django import dispatch
 from django.db import transaction
 from django.db.models import signals as model_signals
@@ -140,8 +141,24 @@ def observe_model_deletion(sender, instance, **kwargs):
 
 
 @dispatch.receiver(model_signals.pre_save)
-def detect_permission_change(sender, instance, **kwargs):
-    """Receive permission updates."""
+def detect_permission_change(sender, instance, created=False, **kwargs):
+    """Handle updates for PermissionObjects and PermissionModels.
+
+    The goal is to detect when any user gains or loses permissions to an object.
+    save signal ->
+        PermissionModel
+            CREATE/UPDATE .. for every user affected by this PM, compare the old
+                and new permission value. If it changed from 0 to non-0 or vice versa,
+                notify the users.
+            DELETE .. do nothing.
+        PermissionObject
+            CREATE .. do nothing, permissions haven't changed.
+            UPDATE
+                PG changed .. compare permissions for all subscribing users.
+                PG unchanged .. do nothing, we must have changed another field.
+            DELETE .. do nothing, delete signals are caught at PermissionModel level.
+        PermissionGroup .. do nothing, a PG can't be modified anyway.
+    """
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -149,11 +166,16 @@ def detect_permission_change(sender, instance, **kwargs):
     if isinstance(instance, PermissionModel):
         gains = set()
         losses = set()
+
+        # Find users affected by this PermissionModel.
         if instance.user is not None:
             relevant_users = [instance.user]
         else:
-            relevant_users = list(instance.group.users)
+            relevant_users = list(
+                get_user_model().objects.filter(groups__pk=instance.group.pk)
+            )
 
+        # For every affected user, calculate their former and current permissions.
         for user in relevant_users:
             old_permission = instance.permission_group.get_permission(user)
             if old_permission > 0 and instance.value == 0:
@@ -171,11 +193,13 @@ def detect_permission_change(sender, instance, **kwargs):
                 route_permission_changes(inst, gains, losses)
 
     elif isinstance(instance, PermissionObject):
+        saved_instances = type(instance).objects.filter(pk=instance.pk)
+
         # Create signals will be caught when the PermissionModel is added.
-        if instance._state.adding:
+        if saved_instances.count() == 0:
             return
 
-        saved_instance = type(instance).objects.get(pk=instance.pk)
+        saved_instance = saved_instances[0]
         old_perm_group = instance.permission_group
         new_perm_group = saved_instance.permission_group
 
