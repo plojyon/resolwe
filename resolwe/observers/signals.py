@@ -3,8 +3,8 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-from django.contrib.auth import get_user_model
 from django import dispatch
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import signals as model_signals
 
