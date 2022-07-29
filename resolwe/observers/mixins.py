@@ -39,7 +39,8 @@ class ObservableMixin:
             user=request.user, session_id=session_id
         )
         subscription.subscribe(table, ids, change_types)
-        return Response(subscription.subscription_id)
+        resp = json.dumps({"subscription_id": subscription.subscription_id})
+        return Response(resp)
 
     @action(detail=False, methods=["post"])
     def unsubscribe(self, request):
