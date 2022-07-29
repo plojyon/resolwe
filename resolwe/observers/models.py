@@ -48,6 +48,8 @@ class Observer(models.Model):
 
 
 class Subscription(models.Model):
+    """Subscription to several observers."""
+
     observers = models.ManyToManyField("Observer", related_name="subscriptions")
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
