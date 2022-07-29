@@ -18,7 +18,7 @@ class ObservableMixin:
     def _id_exists_for_user(self, id, user):
         return self.get_queryset().filter_for_user(user).filter(pk=id).exists()
 
-    @action(detail=False, methods=["post", "get"])
+    @action(detail=False, methods=["post"])
     def subscribe(self, request):
         """Register an Observer for a resource."""
         ids = dict(request.query_params).get("ids", [None])
