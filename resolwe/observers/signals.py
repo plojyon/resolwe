@@ -10,7 +10,7 @@ from django.db.models import signals as model_signals
 
 from resolwe.permissions.models import PermissionModel, PermissionObject
 
-from .models import Observer
+from .models import Observer, Subscription
 from .protocol import (
     CHANGE_TYPE_CREATE,
     CHANGE_TYPE_DELETE,
@@ -51,18 +51,18 @@ def route_instance_changes(instance, change_type):
     )
 
     # Forward the message to the appropriate groups.
-    for observer in observers:
+    for subscriber in Subscription.objects.filter(observers__in=observers):
         has_permission = (
             type(instance)
             .objects.filter(pk=instance.pk)
-            .filter_for_user(user=observer.user)
+            .filter_for_user(user=subscriber.user)
             .exists()
         )
         if not has_permission:
             continue
 
         # Register on_commit callbacks to send the signals.
-        send_notification(observer.session_id, instance, change_type)
+        send_notification(subscriber.session_id, instance, change_type)
 
 
 def route_permission_changes(instance, gains, losses):
@@ -80,11 +80,11 @@ def route_permission_changes(instance, gains, losses):
             continue
 
         # Find all sessions who have observers registered on this object.
+        interested = Observer.get_interested(
+            table=instance._meta.db_table, resource_pk=instance.pk
+        )
         session_ids = set(
-            Observer.get_interested(
-                table=instance._meta.db_table,
-                resource_pk=instance.pk,
-            )
+            Subscription.objects.filter(observers__in=interested)
             .filter(user__in=user_ids)
             .values_list("session_id", flat=True)
             .distinct()
@@ -214,14 +214,17 @@ def detect_permission_change(sender, instance, created=False, **kwargs):
         # Calculate who gained and lost permissions to the object.
         gains = set()
         losses = set()
-        for observer in Observer.objects.all():
-            new_permissions = old_perm_group.get_permission(observer.user)
-            old_permissions = new_perm_group.get_permission(observer.user)
+        interested = Observer.get_interested(
+            resource_pk=instance.pk, table=type(instance)._meta.db_table
+        )
+        for subscriber in Subscription.objects.filter(observers__in=interested):
+            new_permissions = old_perm_group.get_permission(subscriber.user)
+            old_permissions = new_perm_group.get_permission(subscriber.user)
 
             if old_permissions == 0 and new_permissions > 0:
-                gains.add(observer.user)
+                gains.add(subscriber.user)
             if old_permissions > 0 and new_permissions == 0:
-                losses.add(observer.user)
+                losses.add(subscriber.user)
 
         # Announce to relevant observers.
         route_permission_changes(instance, gains, losses)

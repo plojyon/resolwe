@@ -3,7 +3,7 @@ import random
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from .protocol import CHANGE_TYPE_CREATE, CHANGE_TYPE_DELETE, CHANGE_TYPE_UPDATE
 
@@ -27,6 +27,28 @@ class Observer(models.Model):
     # Primary key of the observed resource (null if watching the whole table)
     resource_pk = models.IntegerField(null=True)
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
+
+    @classmethod
+    def get_interested(cls, table, resource_pk=None, change_type=None):
+        """Find all observers watching for changes of a given item/table."""
+        query = Q(table=table)
+        if change_type is not None:
+            query &= Q(change_type=change_type)
+        query &= Q(resource_pk=resource_pk) | Q(resource_pk__isnull=True)
+        return cls.objects.filter(query)
+
+    def __str__(self):
+        """Format the object representation."""
+        return f"table={self.table} resource_pk={self.resource_pk} change={self.change_type}"
+
+    class Meta:
+        """Meta parameters for the Observer model."""
+
+        unique_together = ("table", "resource_pk", "change_type")
+
+
+class Subscription(models.Model):
+    observers = models.ManyToManyField("Observer", related_name="subscriptions")
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -40,25 +62,19 @@ class Observer(models.Model):
         max_length=32, unique=True, default=get_random_hash
     )
 
-    @classmethod
-    def get_interested(cls, table, resource_pk=None, change_type=None):
-        """Find all observers watching for changes of a given item/table."""
-        query = Q(table=table)
-        if change_type is not None:
-            query &= Q(change_type=change_type)
-        query &= Q(resource_pk=resource_pk) | Q(resource_pk__isnull=True)
-        return cls.objects.filter(query)
+    def subscribe(self, table, resource_ids, change_types):
+        """Assign self to multiple observers at once."""
+        for id in resource_ids:
+            for change_type in change_types:
+                observer, _ = Observer.objects.get_or_create(
+                    table=table, resource_pk=id, change_type=change_type
+                )
+                self.observers.add(observer)
 
-    def __str__(self):
-        """Format the object representation."""
-        return "table={table} resource_pk={res} change={change} session_id={session_id}".format(
-            table=self.table,
-            res=self.resource_pk,
-            change=self.change_type,
-            session_id=self.session_id,
-        )
-
-    class Meta:
-        """Meta parameters for the Observer model."""
-
-        unique_together = ("table", "resource_pk", "change_type", "session_id")
+    def delete(self):
+        """Clean up observers with no subscriptions before deleting self."""
+        for observer in self.observers.annotate(subs=Count("subscriptions")).filter(
+            subs=1
+        ):
+            observer.delete()
+        super().delete()

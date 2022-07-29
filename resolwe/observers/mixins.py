@@ -5,60 +5,51 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Observer
+from .models import Observer, Subscription
+from .protocol import CHANGE_TYPE_CREATE, CHANGE_TYPE_DELETE, CHANGE_TYPE_UPDATE
 
 
 class ObservableMixin:
     """A Mixin to make a model ViewSet observable.
 
-    Adds the subscribe and unsubscribe endpoints.
+    Adds the /subscribe and /unsubscribe endpoints to the list view.
     """
 
-    def subscribe(self, request, pk=None, change_types=()):
+    def _id_exists_for_user(self, id, user):
+        return self.get_queryset().filter_for_user(user).filter(pk=id).exists()
+
+    @action(detail=False, methods=["post", "get"])
+    def subscribe(self, request):
         """Register an Observer for a resource."""
-        model = self.get_queryset().model
+        ids = dict(request.query_params).get("ids", [None])
+        session_id = request.query_params.get("session_id")
+        if ids == [None]:
+            change_types = (CHANGE_TYPE_CREATE,)
+        else:
+            change_types = (CHANGE_TYPE_UPDATE, CHANGE_TYPE_DELETE)
 
-        if pk is not None:
-            if not model.objects.filter_for_user(request.user).filter(pk=pk).exists():
-                resp = json.dumps({"error": "Item does not exist"})
-                return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            # Verify all ids exists and user has permissions to view them.
+            for id in ids:
+                if not self._id_exists_for_user(id, request.user):
+                    resp = json.dumps({"error": f"Item {id} does not exist"})
+                    return Response(resp, status=status.HTTP_400_BAD_REQUEST)
 
-        subscription_ids = []
-        for change_type in change_types:
-            observer, _ = Observer.objects.get_or_create(
-                table=model._meta.db_table,
-                resource_pk=pk,
-                change_type=change_type,
-                session_id=request.query_params.get("session_id"),
-                user=request.user,
-            )
-            subscription_ids.append(observer.subscription_id)
-        return Response(json.dumps(subscription_ids))
+        table = self.get_queryset().model._meta.db_table
+        subscription = Subscription.objects.create(
+            user=request.user, session_id=session_id
+        )
+        subscription.subscribe(table, ids, change_types)
+        return Response(subscription.subscription_id)
 
-    @action(detail=True, methods=["post"], url_path="subscribe")
-    def subscribe_detail(self, request, pk=None):
-        """Subscribe to changes of a specific model instance."""
-        return self.subscribe(request, pk=pk, change_types=("UPDATE", "DELETE"))
-
-    @action(detail=False, methods=["post"], url_path="subscribe")
-    def subscribe_list(self, request):
-        """Subscribe to creations and deletions of a specific model."""
-        return self.subscribe(request, change_types=("CREATE",))
-
-    def unsubscribe(self, subscription_id=None):
+    @action(detail=False, methods=["post"])
+    def unsubscribe(self, request):
         """Unregister a subscription."""
-        if subscription_id is None:
-            resp = json.dumps({"error": "Missing subscription_id"})
+        subscription_id = request.query_params.get("subscription_id", None)
+        subscriptions = Subscription.objects.filter(pk=subscription_id)
+
+        if subscriptions.count() != 1:
+            resp = json.dumps({"error": "Invalid subscription_id"})
             return Response(resp, status=status.HTTP_400_BAD_REQUEST)
-        Observer.objects.filter(subscription_id=subscription_id).delete()
+
+        subscriptions.first().delete()
         return Response()
-
-    @action(detail=True, methods=["post"], url_path="unsubscribe")
-    def unsubscribe_detail(self, request, pk=None):
-        """Unregister a subscription."""
-        return self.unsubscribe(request.query_params.get("subscription_id", None))
-
-    @action(detail=False, methods=["post"], url_path="unsubscribe")
-    def unsubscribe_list(self, request):
-        """Unregister a subscription."""
-        return self.unsubscribe(request.query_params.get("subscription_id", None))
