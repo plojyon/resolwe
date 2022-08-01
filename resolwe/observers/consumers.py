@@ -2,6 +2,8 @@
 
 from channels.generic.websocket import JsonWebsocketConsumer
 
+from django.contrib.contenttypes.models import ContentType
+
 from .models import Observer, Subscription
 from .protocol import CHANGE_TYPE_DELETE, GROUP_SESSIONS
 
@@ -31,23 +33,28 @@ class ClientConsumer(JsonWebsocketConsumer):
 
     def observers_item_update(self, msg):
         """Handle an item update signal."""
+        content_type = ContentType.objects.get_for_id(msg["content_type_pk"])
+        object_id = msg["object_id"]
+        change_type = msg["change_type"]
+
         interested = Observer.get_interested(
-            table=msg["table"],
-            resource_pk=msg["primary_key"],
-            change_type=msg["type_of_change"],
+            content_type=content_type, object_id=object_id, change_type=change_type
         )
-        subscription_ids = list(
-            Subscription.objects.filter(observers__in=interested)
-            .values_list("subscription_id", flat=True)
-            .distinct()
+        subscription_ids = map(
+            lambda x: x.hex,
+            list(
+                Subscription.objects.filter(observers__in=interested)
+                .values_list("subscription_id", flat=True)
+                .distinct()
+            ),
         )
 
-        if msg["type_of_change"] == CHANGE_TYPE_DELETE:
+        if change_type == CHANGE_TYPE_DELETE:
             # The observed object was either deleted or the user lost permissions.
             subscription = Subscription.objects.get(session_id=self.session_id)
             observers = Observer.objects.filter(
-                table=msg["table"],
-                resource_pk=msg["primary_key"],
+                content_type=content_type,
+                object_id=object_id,
                 # change_type = Any,
             )
             # Assure we don't stay subscribed to an illegal object.
@@ -58,7 +65,7 @@ class ClientConsumer(JsonWebsocketConsumer):
             self.send_json(
                 {
                     "subscription_id": subscription_id,
-                    "primary_key": msg["primary_key"],
-                    "type_of_change": msg["type_of_change"],
+                    "object_id": object_id,
+                    "change_type": change_type,
                 }
             )

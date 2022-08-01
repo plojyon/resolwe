@@ -5,6 +5,7 @@ from channels.layers import get_channel_layer
 
 from django import dispatch
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import signals as model_signals
 
@@ -46,8 +47,8 @@ def route_instance_changes(instance, change_type):
 
     observers = Observer.get_interested(
         change_type=change_type,
-        table=instance._meta.db_table,
-        resource_pk=instance.pk,
+        content_type=ContentType.objects.get_for_model(type(instance)),
+        object_id=instance.pk,
     )
 
     # Forward the message to the appropriate groups.
@@ -81,7 +82,8 @@ def route_permission_changes(instance, gains, losses):
 
         # Find all sessions who have observers registered on this object.
         interested = Observer.get_interested(
-            table=instance._meta.db_table, resource_pk=instance.pk
+            content_type=ContentType.objects.get_for_model(type(instance)),
+            object_id=instance.pk,
         )
         session_ids = set(
             Subscription.objects.filter(observers__in=interested)
@@ -98,11 +100,9 @@ def send_notification(session_id, instance, change_type):
     """Register a callback to send a change notification on transaction commit."""
     notification = {
         "type": TYPE_ITEM_UPDATE,
-        "table": instance._meta.db_table,
-        "type_of_change": change_type,
-        "primary_key": str(instance.pk),
-        "app_label": instance._meta.app_label,
-        "model_name": instance._meta.object_name,
+        "content_type_pk": ContentType.objects.get_for_model(type(instance)).pk,
+        "change_type": change_type,
+        "object_id": str(instance.pk),
     }
 
     # Define a callback, but copy variable values.
@@ -215,7 +215,8 @@ def detect_permission_change(sender, instance, created=False, **kwargs):
         gains = set()
         losses = set()
         interested = Observer.get_interested(
-            resource_pk=instance.pk, table=type(instance)._meta.db_table
+            content_type=ContentType.objects.get_for_model(type(instance)),
+            object_id=instance.pk,
         )
         for subscriber in Subscription.objects.filter(observers__in=interested):
             new_permissions = old_perm_group.get_permission(subscriber.user)

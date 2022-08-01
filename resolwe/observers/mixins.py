@@ -1,8 +1,10 @@
 """Mixins for Observable ViewSets."""
 import json
 
-from rest_framework import status
+from django.contrib.contenttypes.models import ContentType
+
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
 from .models import Subscription
@@ -15,7 +17,8 @@ class ObservableMixin:
     Adds the /subscribe and /unsubscribe endpoints to the list view.
     """
 
-    def _id_exists_for_user(self, id, user):
+    def user_has_permission(self, id, user):
+        """Verify that an object exists for a given user."""
         return self.get_queryset().filter_for_user(user).filter(pk=id).exists()
 
     @action(detail=False, methods=["post"])
@@ -30,15 +33,14 @@ class ObservableMixin:
 
             # Verify all ids exists and user has permissions to view them.
             for id in ids:
-                if not self._id_exists_for_user(id, request.user):
-                    resp = json.dumps({"error": f"Item {id} does not exist"})
-                    return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+                if not self.user_has_permission(id, request.user):
+                    raise NotFound(f"Item {id} does not exist")
 
-        table = self.get_queryset().model._meta.db_table
+        content_type = ContentType.objects.get_for_model(self.get_queryset().model)
         subscription = Subscription.objects.create(
             user=request.user, session_id=session_id
         )
-        subscription.subscribe(table, ids, change_types)
+        subscription.subscribe(content_type, ids, change_types)
         resp = json.dumps({"subscription_id": subscription.subscription_id})
         return Response(resp)
 
@@ -46,11 +48,12 @@ class ObservableMixin:
     def unsubscribe(self, request):
         """Unregister a subscription."""
         subscription_id = request.query_params.get("subscription_id", None)
-        subscriptions = Subscription.objects.filter(pk=subscription_id)
+        subscriptions = Subscription.objects.filter(
+            pk=subscription_id, user=request.user
+        )
 
         if subscriptions.count() != 1:
-            resp = json.dumps({"error": "Invalid subscription_id"})
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            raise NotFound(f"{subscription_id} is an invalid subscription_id")
 
         subscriptions.first().delete()
         return Response()
