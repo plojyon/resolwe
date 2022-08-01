@@ -586,27 +586,6 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(Observer.objects.count(), 3)
 
-    # def test_subscribe_no_auth(self):
-    #     resp = self._get_list(42, query_params={"session_id": "test"})
-    #     # Data pk=42 isn't public, so we can't subscribe
-    #     self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-    #     self.assertEqual(Observer.objects.count(), 0)
-    #
-    #     public_data = Data.objects.create(
-    #         pk=31,
-    #         name="Public data",
-    #         slug="public-data",
-    #         contributor=self.user_alice,
-    #         process=self.process,
-    #         size=0,
-    #     )
-    #     public_data.set_permission(Permission.VIEW, AnonymousUser())
-    #
-    #     resp = self._get_list(31, query_params={"session_id": "test"})
-    #     # Data pk=31 is public, so we can subscribe
-    #     self.assertEqual(resp.status_code, status.HTTP_200_OK)
-    #     self.assertEqual(Observer.objects.count(), 2)
-
     def test_subscribe_to_forbidden_object(self):
         resp = self._get_list(
             user=self.user_bob, query_params={"session_id": "test", "ids": 42}
