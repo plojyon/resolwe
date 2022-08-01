@@ -27,7 +27,6 @@ class Observer(models.Model):
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     # Primary key of the observed resource (null if watching the whole table)
     object_id = models.PositiveIntegerField(null=True)
-    # observed_resource = models.GenericForeignKey(null=True)
 
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
 
