@@ -3,9 +3,18 @@
 from channels.generic.websocket import JsonWebsocketConsumer
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 
 from .models import Observer, Subscription
-from .protocol import CHANGE_TYPE_DELETE, GROUP_SESSIONS
+from .protocol import (
+    CHANGE_TYPE_DELETE,
+    GROUP_SESSIONS,
+    THROTTLE_SEMAPHORE_DELAY,
+    THROTTLE_SEMAPHORE_EVALUATE,
+    THROTTLE_SEMAPHORE_IGNORE,
+    throttle_cache_key,
+)
+from .settings import get_observer_settings
 
 
 class ClientConsumer(JsonWebsocketConsumer):
@@ -69,3 +78,23 @@ class ClientConsumer(JsonWebsocketConsumer):
                     "change_type": change_type,
                 }
             )
+
+
+def throttle_semaphore(observer_id):
+    """Check if observer should be evaluated, delayed or ignored.
+
+    Increase the observer counter if throttle cache exists.
+    """
+    cache_key = throttle_cache_key(observer_id)
+    throttle_rate = get_observer_settings()["throttle_rate"]
+
+    try:
+        count = cache.incr(cache_key)
+        # Ignore if delayed observer already scheduled.
+        return THROTTLE_SEMAPHORE_DELAY if count == 2 else THROTTLE_SEMAPHORE_IGNORE
+    except ValueError:
+        count = cache.get_or_set(cache_key, default=1, timeout=throttle_rate)
+        # Ignore if cache was set and increased in another thread.
+        return THROTTLE_SEMAPHORE_EVALUATE if count == 1 else THROTTLE_SEMAPHORE_IGNORE
+
+    assert False  # This should never happen.
