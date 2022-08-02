@@ -121,7 +121,7 @@ if sys.platform == "darwin":
     LISTENER_CONNECTION["hosts"]["local"] = "127.0.0.1"
     COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "127.0.0.1"}
 
-ASGI_APPLICATION = "resolwe.flow.routing.channel_routing"
+ASGI_APPLICATION = "tests.asgi.application"  # "resolwe.flow.routing.channel_routing"
 
 CHANNEL_LAYERS = {
     "default": {

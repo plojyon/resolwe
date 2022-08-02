@@ -1,7 +1,9 @@
 """ORM signal handlers."""
 
 from asgiref.sync import async_to_sync
+from channels.exceptions import ChannelFull
 from channels.layers import get_channel_layer
+from channels.exceptions import ChannelFull
 
 from django import dispatch
 from django.contrib.auth import get_user_model
@@ -17,6 +19,7 @@ from .protocol import (
     CHANGE_TYPE_DELETE,
     CHANGE_TYPE_UPDATE,
     GROUP_SESSIONS,
+    TYPE_CHANNEL_OVERFILL,
     TYPE_ITEM_UPDATE,
 )
 
@@ -96,6 +99,11 @@ def route_permission_changes(instance, gains, losses):
             send_notification(session_id, instance, change_type)
 
 
+# import time
+acc = 0
+facc = 0
+
+
 def send_notification(session_id, instance, change_type):
     """Register a callback to send a change notification on transaction commit."""
     notification = {
@@ -111,7 +119,21 @@ def send_notification(session_id, instance, change_type):
         channel=GROUP_SESSIONS.format(session_id=session_id),
         notification=notification,
     ):
-        async_to_sync(channel_layer.send)(channel, notification)
+        global acc, facc
+        try:
+            async_to_sync(channel_layer.group_send)(channel, notification)
+            acc += 1
+            if acc % 100 == 0:
+                print("sent", acc)
+        except ChannelFull:
+            facc += 1
+            print("skipped", facc)
+
+            # pop one message and note the overfill
+            recvd = async_to_sync(channel_layer.receive)(channel)
+            async_to_sync(channel_layer.group_send)(
+                channel, {"type": TYPE_CHANNEL_OVERFILL}
+            )
 
     transaction.on_commit(trigger)
 
