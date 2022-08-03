@@ -122,7 +122,7 @@ class ObservableMixin:
             data.name = f"iter{i}"
             data.save()
 
-        for i in range(1000):
+        for i in range(10):
             alter(data, i)
 
         return Response()

@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from .models import Observer, Subscription
 from .protocol import CHANGE_TYPE_DELETE, GROUP_SESSIONS
+import time
 
 
 class ClientConsumer(JsonWebsocketConsumer):
@@ -70,3 +71,4 @@ class ClientConsumer(JsonWebsocketConsumer):
                     "change_type": change_type,
                 }
             )
+            time.sleep(3)
