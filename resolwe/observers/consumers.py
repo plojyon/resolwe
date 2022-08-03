@@ -44,6 +44,7 @@ class ClientConsumer(JsonWebsocketConsumer):
             lambda x: x.hex,
             list(
                 Subscription.objects.filter(observers__in=interested)
+                .filter(session_id=self.session_id)
                 .values_list("subscription_id", flat=True)
                 .distinct()
             ),
