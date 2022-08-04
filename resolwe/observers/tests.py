@@ -16,7 +16,7 @@ from django.urls import path
 
 from rest_framework import status
 
-from resolwe.flow.models import Data, Entity, Process
+from resolwe.flow.models import Collection, Data, Entity, Process
 from resolwe.flow.views import DataViewSet
 from resolwe.permissions.models import Permission, PermissionGroup
 from resolwe.test import TransactionResolweAPITestCase
@@ -321,15 +321,27 @@ class ObserverTestCase(TransactionTestCase):
         # Create a Data object visible to Bob.
         @database_sync_to_async
         def create_data():
+            self.collection = Collection.objects.create(
+                contributor=self.user_alice,
+                name="Test collection",
+            )
+            self.collection.set_permission(Permission.VIEW, self.user_bob)
+
+            self.collection2 = Collection.objects.create(
+                contributor=self.user_alice,
+                name="Test collection 2",
+            )
+            self.collection2.set_permission(Permission.NONE, self.user_bob)
+
             data = Data.objects.create(
                 pk=42,
                 name="Test data",
                 slug="test-data",
                 contributor=self.user_alice,
                 process=self.process,
+                collection=self.collection,
                 size=0,
             )
-            data.set_permission(Permission.VIEW, self.user_bob)
             return data
 
         data = await create_data()
@@ -351,8 +363,8 @@ class ObserverTestCase(TransactionTestCase):
         # (removes permissions to Bob)
         @database_sync_to_async
         def change_permission_group(data):
-            data.permission_group = PermissionGroup.objects.create()
-            data.save()
+            data.move_to_collection(self.collection2)
+            # data.save()
 
         await change_permission_group(data)
 
