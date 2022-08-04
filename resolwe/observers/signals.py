@@ -4,13 +4,11 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 from django import dispatch
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import signals as model_signals
 
-from resolwe.permissions.models import Permission, PermissionModel, PermissionObject
-from resolwe.permissions.utils import get_identity
+from resolwe.permissions.models import Permission
 
 from .models import Observer, Subscription
 from .protocol import (
@@ -44,6 +42,7 @@ def model_post_migrate(*args, **kwargs):
 
 @dispatch.receiver(pre_permission_changed)
 def prepare_permission_change(instance, **kwargs):
+    """Store old permissions for an object whose permissions are about to change."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return
@@ -53,6 +52,7 @@ def prepare_permission_change(instance, **kwargs):
 
 @dispatch.receiver(post_permission_changed)
 def handle_permission_change(instance, **kwargs):
+    """Compare permissions for an object whose permissions changed."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
         return

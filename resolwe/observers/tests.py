@@ -18,7 +18,7 @@ from rest_framework import status
 
 from resolwe.flow.models import Collection, Data, Entity, Process
 from resolwe.flow.views import DataViewSet
-from resolwe.permissions.models import Permission, PermissionGroup
+from resolwe.permissions.models import Permission
 from resolwe.test import TransactionResolweAPITestCase
 
 from .consumers import ClientConsumer
