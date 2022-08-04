@@ -9,7 +9,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import signals as model_signals
 
-from resolwe.permissions.models import PermissionModel, PermissionObject
+from resolwe.permissions.models import Permission, PermissionModel, PermissionObject
+from resolwe.permissions.utils import get_identity
 
 from .models import Observer, Subscription
 from .protocol import (
@@ -18,10 +19,12 @@ from .protocol import (
     CHANGE_TYPE_UPDATE,
     GROUP_SESSIONS,
     TYPE_ITEM_UPDATE,
+    post_permission_changed,
+    pre_permission_changed,
 )
 
 # Global 'in migrations' flag to ignore signals during migrations.
-# Signals handlers that access the database will crash the migration process.
+# Signal handlers that access the database can crash the migration process.
 IN_MIGRATIONS = False
 
 
@@ -37,6 +40,29 @@ def model_post_migrate(*args, **kwargs):
     """Clear 'in migrations' flag."""
     global IN_MIGRATIONS
     IN_MIGRATIONS = False
+
+
+@dispatch.receiver(pre_permission_changed)
+def prepare_permission_change(instance, **kwargs):
+    global IN_MIGRATIONS
+    if IN_MIGRATIONS:
+        return
+
+    instance._old_viewers = instance.users_with_permission(Permission.VIEW)
+
+
+@dispatch.receiver(post_permission_changed)
+def handle_permission_change(instance, **kwargs):
+    global IN_MIGRATIONS
+    if IN_MIGRATIONS:
+        return
+
+    new = instance.users_with_permission(Permission.VIEW)
+    old = instance._old_viewers
+
+    gains = new - old
+    losses = old - new
+    route_permission_changes(instance, gains, losses)
 
 
 def route_instance_changes(instance, change_type):
@@ -140,92 +166,92 @@ def observe_model_deletion(sender, instance, **kwargs):
     route_instance_changes(instance, CHANGE_TYPE_DELETE)
 
 
-@dispatch.receiver(model_signals.pre_save)
-def detect_permission_change(sender, instance, created=False, **kwargs):
-    """Handle updates for PermissionObjects and PermissionModels.
-
-    The goal is to detect when any user gains or loses permissions to an object.
-    save signal ->
-        PermissionModel
-            CREATE/UPDATE .. for every user affected by this PM, compare the old
-                and new permission value. If it changed from 0 to non-0 or vice versa,
-                notify the users.
-            DELETE .. do nothing.
-        PermissionObject
-            CREATE .. do nothing, permissions haven't changed.
-            UPDATE
-                PG changed .. compare permissions for all subscribing users.
-                PG unchanged .. do nothing, we must have changed another field.
-            DELETE .. do nothing, delete signals are caught at PermissionModel level.
-        PermissionGroup .. do nothing, a PG can't be modified anyway.
-    """
-    global IN_MIGRATIONS
-    if IN_MIGRATIONS:
-        return
-
-    if isinstance(instance, PermissionModel):
-        gains = set()
-        losses = set()
-
-        # Find users affected by this PermissionModel.
-        if instance.user is not None:
-            relevant_users = [instance.user]
-        else:
-            relevant_users = list(
-                get_user_model().objects.filter(groups__pk=instance.group.pk)
-            )
-
-        # For every affected user, calculate their former and current permissions.
-        for user in relevant_users:
-            old_permission = instance.permission_group.get_permission(user)
-            if old_permission > 0 and instance.value == 0:
-                losses.add(user.pk)
-            elif old_permission == 0 and instance.value > 0:
-                gains.add(user.pk)
-
-        # In case of no changes, return.
-        if len(gains) == 0 and len(losses) == 0:
-            return
-
-        # Find all relevant PermissionObjects and announce permission changes.
-        for cls in PermissionObject.__subclasses__():
-            for inst in cls.objects.filter(permission_group=instance.permission_group):
-                route_permission_changes(inst, gains, losses)
-
-    elif isinstance(instance, PermissionObject):
-        saved_instances = type(instance).objects.filter(pk=instance.pk)
-
-        # Create signals will be caught when the PermissionModel is added.
-        if saved_instances.count() == 0:
-            return
-
-        saved_instance = saved_instances[0]
-        old_perm_group = instance.permission_group
-        new_perm_group = saved_instance.permission_group
-
-        # In case either PermissionGroup doesn't exist, return.
-        if old_perm_group is None or new_perm_group is None:
-            return
-
-        # In case of no changes, return.
-        if old_perm_group.pk == new_perm_group.pk:
-            return
-
-        # Calculate who gained and lost permissions to the object.
-        gains = set()
-        losses = set()
-        interested = Observer.get_interested(
-            content_type=ContentType.objects.get_for_model(type(instance)),
-            object_id=instance.pk,
-        )
-        for subscriber in Subscription.objects.filter(observers__in=interested):
-            new_permissions = old_perm_group.get_permission(subscriber.user)
-            old_permissions = new_perm_group.get_permission(subscriber.user)
-
-            if old_permissions == 0 and new_permissions > 0:
-                gains.add(subscriber.user)
-            if old_permissions > 0 and new_permissions == 0:
-                losses.add(subscriber.user)
-
-        # Announce to relevant observers.
-        route_permission_changes(instance, gains, losses)
+# @dispatch.receiver(model_signals.pre_save)
+# def detect_permission_change(sender, instance, created=False, **kwargs):
+#     """Handle updates for PermissionObjects and PermissionModels.
+#
+#     The goal is to detect when any user gains or loses permissions to an object.
+#     save signal ->
+#         PermissionModel
+#             CREATE/UPDATE .. for every user affected by this PM, compare the old
+#                 and new permission value. If it changed from 0 to non-0 or vice versa,
+#                 notify the users.
+#             DELETE .. do nothing.
+#         PermissionObject
+#             CREATE .. do nothing, permissions haven't changed.
+#             UPDATE
+#                 PG changed .. compare permissions for all subscribing users.
+#                 PG unchanged .. do nothing, we must have changed another field.
+#             DELETE .. do nothing, delete signals are caught at PermissionModel level.
+#         PermissionGroup .. do nothing, a PG can't be modified anyway.
+#     """
+#     global IN_MIGRATIONS
+#     if IN_MIGRATIONS:
+#         return
+#
+#     if isinstance(instance, PermissionModel):
+#         gains = set()
+#         losses = set()
+#
+#         # Find users affected by this PermissionModel.
+#         if instance.user is not None:
+#             relevant_users = [instance.user]
+#         else:
+#             relevant_users = list(
+#                 get_user_model().objects.filter(groups__pk=instance.group.pk)
+#             )
+#
+#         # For every affected user, calculate their former and current permissions.
+#         for user in relevant_users:
+#             old_permission = instance.permission_group.get_permission(user)
+#             if old_permission > 0 and instance.value == 0:
+#                 losses.add(user.pk)
+#             elif old_permission == 0 and instance.value > 0:
+#                 gains.add(user.pk)
+#
+#         # In case of no changes, return.
+#         if len(gains) == 0 and len(losses) == 0:
+#             return
+#
+#         # Find all relevant PermissionObjects and announce permission changes.
+#         for cls in PermissionObject.__subclasses__():
+#             for inst in cls.objects.filter(permission_group=instance.permission_group):
+#                 route_permission_changes(inst, gains, losses)
+#
+#     elif isinstance(instance, PermissionObject):
+#         saved_instances = type(instance).objects.filter(pk=instance.pk)
+#
+#         # Create signals will be caught when the PermissionModel is added.
+#         if saved_instances.count() == 0:
+#             return
+#
+#         saved_instance = saved_instances[0]
+#         old_perm_group = instance.permission_group
+#         new_perm_group = saved_instance.permission_group
+#
+#         # In case either PermissionGroup doesn't exist, return.
+#         if old_perm_group is None or new_perm_group is None:
+#             return
+#
+#         # In case of no changes, return.
+#         if old_perm_group.pk == new_perm_group.pk:
+#             return
+#
+#         # Calculate who gained and lost permissions to the object.
+#         gains = set()
+#         losses = set()
+#         interested = Observer.get_interested(
+#             content_type=ContentType.objects.get_for_model(type(instance)),
+#             object_id=instance.pk,
+#         )
+#         for subscriber in Subscription.objects.filter(observers__in=interested):
+#             new_permissions = old_perm_group.get_permission(subscriber.user)
+#             old_permissions = new_perm_group.get_permission(subscriber.user)
+#
+#             if old_permissions == 0 and new_permissions > 0:
+#                 gains.add(subscriber.user)
+#             if old_permissions > 0 and new_permissions == 0:
+#                 losses.add(subscriber.user)
+#
+#         # Announce to relevant observers.
+#         route_permission_changes(instance, gains, losses)
