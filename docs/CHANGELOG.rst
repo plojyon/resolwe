@@ -12,7 +12,7 @@ Unreleased
 
 Added
 -----
-- Add query observers that notify clients about database changes via a
+- Add model observers that notify clients about database changes via a
   websocket connection
 
 

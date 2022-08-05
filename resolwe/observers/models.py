@@ -39,6 +39,14 @@ class Observer(models.Model):
 
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
 
+    class Meta:
+        """Meta parameters for the Observer model."""
+
+        unique_together = ("content_type", "object_id", "change_type")
+        indexes = [
+            models.Index(name="idx_observer_object_id", fields=["object_id"]),
+        ]
+
     @classmethod
     def get_interested(cls, content_type, object_id=None, change_type=None):
         """Find all observers watching for changes of a given item/table."""
@@ -108,11 +116,6 @@ class Observer(models.Model):
         """Format the object representation."""
         return f"content_type={self.content_type} object_id={self.object_id} change={self.change_type}"
 
-    class Meta:
-        """Meta parameters for the Observer model."""
-
-        unique_together = ("content_type", "object_id", "change_type")
-
 
 class Subscription(models.Model):
     """Subscription to several observers."""
@@ -130,6 +133,13 @@ class Subscription(models.Model):
     subscription_id = models.UUIDField(
         unique=True, default=get_random_uuid, editable=False
     )
+
+    class Meta:
+        """Meta parameters for the Subscription model."""
+
+        indexes = [
+            models.Index(name="idx_subscription_session_id", fields=["session_id"]),
+        ]
 
     def subscribe(self, content_type, resource_ids, change_types):
         """Assign self to multiple observers at once."""

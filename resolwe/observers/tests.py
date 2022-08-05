@@ -6,7 +6,6 @@ import uuid
 
 import async_timeout
 from channels.db import database_sync_to_async
-from channels.layers import get_channel_layer
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 
@@ -24,13 +23,6 @@ from resolwe.test import TransactionResolweAPITestCase
 
 from .consumers import ClientConsumer
 from .models import Observer, Subscription
-from .protocol import (
-    CHANGE_TYPE_CREATE,
-    CHANGE_TYPE_DELETE,
-    CHANGE_TYPE_UPDATE,
-    GROUP_SESSIONS,
-    TYPE_ITEM_UPDATE,
-)
 
 
 class ObserverTestCase(TransactionTestCase):
@@ -226,7 +218,7 @@ class ObserverTestCase(TransactionTestCase):
         await client.disconnect()
         await self.await_subscription_observer_count(0)
 
-    async def test_observe_content_type(self):
+    async def test_observe_table(self):
         client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         connected, _ = await client.connect()
         self.assertTrue(connected)
@@ -265,14 +257,14 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "change_type": CHANGE_TYPE_CREATE,
+                "change_type": "CREATE",
                 "object_id": "42",
                 "subscription_id": self.subscription_id.hex,
             },
         )
         await self.assert_no_more_messages(client)
 
-        # Delete the Data object
+        # Delete the Data object.
         @database_sync_to_async
         def delete_data(data):
             data.delete()
@@ -283,7 +275,7 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "change_type": CHANGE_TYPE_DELETE,
+                "change_type": "DELETE",
                 "object_id": "42",
                 "subscription_id": self.subscription_id.hex,
             },
@@ -354,7 +346,7 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "change_type": CHANGE_TYPE_DELETE,
+                "change_type": "DELETE",
                 "object_id": "42",
                 "subscription_id": self.subscription_id.hex,
             },
@@ -407,7 +399,7 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "change_type": CHANGE_TYPE_CREATE,
+                "change_type": "CREATE",
                 "object_id": "42",
                 "subscription_id": self.subscription_id.hex,
             },
@@ -425,14 +417,14 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "change_type": CHANGE_TYPE_DELETE,
+                "change_type": "DELETE",
                 "object_id": "42",
                 "subscription_id": self.subscription_id.hex,
             },
         )
         await self.assert_no_more_messages(client)
 
-    async def test_observe_content_type_no_permissions(self):
+    async def test_observe_table_no_permissions(self):
         client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         connected, details = await client.connect()
         self.assertTrue(connected)

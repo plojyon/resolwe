@@ -1,19 +1,14 @@
 """ORM signal handlers."""
 
 from django import dispatch
-from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.db.models import signals as model_signals
 
 from resolwe.permissions.models import Permission
 
-from .models import Observer, Subscription
+from .models import Observer
 from .protocol import (
-    CHANGE_TYPE_CREATE,
     CHANGE_TYPE_DELETE,
     CHANGE_TYPE_UPDATE,
-    GROUP_SESSIONS,
-    TYPE_ITEM_UPDATE,
     post_permission_changed,
     pre_permission_changed,
 )
