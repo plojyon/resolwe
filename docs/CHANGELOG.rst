@@ -13,6 +13,8 @@ Unreleased
 Added
 -----
 - Add ``descriptor`` and ``descriptor_schema`` fields to the ``Relation`` model
+- Add model observers that notify clients about model changes via a websocket
+  connection
 
 
 ===================
