@@ -258,27 +258,27 @@ class ObjectPermsTestCase(TestCase):
         self.collection.set_permission(Permission.SHARE, self.user2)
         self.assertEqual(
             self.collection.users_with_permission(Permission.VIEW),
-            set([self.user1, self.user2]),
+            [self.user1, self.user2],
         )
         self.assertEqual(
             self.collection.users_with_permission(Permission.SHARE),
-            set([self.user2]),
+            [self.user2],
         )
         self.assertEqual(
             self.collection.users_with_permission(Permission.OWNER),
-            set(),
+            [],
         )
 
-        self.collection.set_permission(Permission.NONE, self.user1)
+        self.collection._permission(Permission.NONE, self.user1)
         self.assertEqual(
             self.collection.users_with_permission(Permission.VIEW),
-            set([self.user2]),
+            [self.user2],
         )
 
         self.collection.set_permission(Permission.VIEW, self.group1)
         self.assertEqual(
             self.collection.users_with_permission(Permission.VIEW),
-            set([self.user1, self.user2]),
+            [self.user1, self.user2],
         )
 
 

@@ -248,11 +248,11 @@ class PermissionGroup(models.Model):
         PermissionModel with Permission.NONE exists.
         """
         filtered = self.permissions.filter(value__gte=permission)
-        users = set(
+        users = list(
             User.objects.filter(
                 models.Q(groups__in=filtered.values_list("group", flat=True))
                 | models.Q(pk__in=filtered.values_list("user", flat=True))
-            )
+            ).distinct()
         )
         return users
 

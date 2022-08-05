@@ -41,7 +41,7 @@ class ClientConsumer(JsonWebsocketConsumer):
             content_type=content_type, object_id=object_id, change_type=change_type
         )
         subscription_ids = map(
-            lambda x: x.hex,
+            lambda subscription_id: subscription_id.hex,
             list(
                 Subscription.objects.filter(observers__in=interested)
                 .filter(session_id=self.session_id)
@@ -56,11 +56,9 @@ class ClientConsumer(JsonWebsocketConsumer):
             observers = Observer.objects.filter(
                 content_type=content_type,
                 object_id=object_id,
-                # change_type = Any,
             )
             # Assure we don't stay subscribed to an illegal object.
-            for observer in observers:
-                subscription.observers.remove(observer)
+            subscription.observers.remove(*observers)
 
         for subscription_id in subscription_ids:
             self.send_json(
