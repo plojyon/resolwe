@@ -256,15 +256,15 @@ class ObjectPermsTestCase(TestCase):
         self.group1.user_set.add(self.user1)
         self.collection.set_permission(Permission.EDIT, self.user1)
         self.collection.set_permission(Permission.SHARE, self.user2)
-        self.assertEqual(
+        self.assertCountEqual(
             self.collection.users_with_permission(Permission.VIEW),
             [self.user1, self.user2],
         )
-        self.assertEqual(
+        self.assertCountEqual(
             self.collection.users_with_permission(Permission.SHARE),
             [self.user2],
         )
-        self.assertEqual(
+        self.assertCountEqual(
             self.collection.users_with_permission(Permission.OWNER),
             [],
         )
