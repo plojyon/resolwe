@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 This project adheres to `Semantic Versioning <http://semver.org/>`_.
 
 
+==========
+Unreleased
+==========
+
+Added
+-----
+- Add query observers that notify clients about database changes via a
+  websocket connection
+
+
 ===================
 31.0.0 - 2022-07-18
 ===================
