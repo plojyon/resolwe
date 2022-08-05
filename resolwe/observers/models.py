@@ -161,6 +161,6 @@ class Subscription(models.Model):
             channel=GROUP_SESSIONS.format(session_id=session_id),
             notification=notification,
         ):
-            async_to_sync(channel_layer.send)(channel, notification)
+            async_to_sync(channel_layer.group_send)(channel, notification)
 
         transaction.on_commit(trigger)

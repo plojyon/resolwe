@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import uuid
 
 import async_timeout
 from channels.db import database_sync_to_async
@@ -55,35 +56,14 @@ class ObserverTestCase(TransactionTestCase):
         self.client_consumer = URLRouter(
             [path("ws/<slug:session_id>", ClientConsumer().as_asgi())]
         )
+        self.subscription_id = uuid.UUID(int=0)
+        self.subscription_id2 = uuid.UUID(int=1)
 
-    async def clear_channel(self, channel):
-        """Clear all uncaught messages from the channel layer."""
-        channel_layer = get_channel_layer()
-        while True:
-            try:
-                async with async_timeout.timeout(0.01):
-                    await channel_layer.receive(channel)
-            except asyncio.TimeoutError:
-                break
-
-    async def assert_and_propagate_signal(self, signal, channel, client):
-        """Assert a signal is queued in a channel and send it to the client."""
-        # Check that a signal was generated.
-        channel_layer = get_channel_layer()
-        async with async_timeout.timeout(1):
-            notify = await channel_layer.receive(channel)
-
-        self.assertDictEqual(notify, signal)
-
-        # Propagate notification to worker.
-        await client.send_input(notify)
-
-    async def assert_empty_channel(self, channel):
-        """Assert there are no messages queued in a given channel."""
-        channel_layer = get_channel_layer()
+    async def assert_no_more_messages(self, client):
+        """Assert there are no messages queued by a websocket client."""
         with self.assertRaises(asyncio.TimeoutError):
             async with async_timeout.timeout(0.01):
-                await channel_layer.receive(channel)
+                raise ValueError("Unexpected message:", await client.receive_from())
 
     async def await_subscription_observer_count(self, count):
         """Wait until the number of all subscriptions is equal to count."""
@@ -126,39 +106,27 @@ class ObserverTestCase(TransactionTestCase):
             )
 
     async def test_websocket_subscribe_unsubscribe(self):
-        channel = GROUP_SESSIONS.format(session_id="test_session")
-        await self.clear_channel(channel)
-
         client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         connected, _ = await client.connect()
         self.assertTrue(connected)
-
-        async def propagate_entity_signal(change):
-            await self.assert_and_propagate_signal(
-                {
-                    "type": TYPE_ITEM_UPDATE,
-                    "change_type": change,
-                    "object_id": "43",
-                    "content_type_pk": ContentType.objects.get_for_model(Entity).pk,
-                },
-                channel,
-                client,
-            )
-
         await self.await_subscription_observer_count(0)
 
         # Subscribe to C/D and U separately.
         @database_sync_to_async
         def subscribe():
             Subscription.objects.create(
-                user=self.user_alice, session_id="test_session"
+                user=self.user_alice,
+                session_id="test_session",
+                subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Entity),
                 resource_ids=[43],
                 change_types=["CREATE", "DELETE"],
             )
             Subscription.objects.create(
-                user=self.user_alice, session_id="test_session"
+                user=self.user_alice,
+                session_id="test_session",
+                subscription_id=self.subscription_id2,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Entity),
                 resource_ids=[43],
@@ -185,17 +153,25 @@ class ObserverTestCase(TransactionTestCase):
 
         entity = await create_entity()
 
-        await propagate_entity_signal(CHANGE_TYPE_CREATE)
-        packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["object_id"], "43")
-        self.assertEquals(packet["change_type"], "CREATE")
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "object_id": "43",
+                "change_type": "CREATE",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
 
         entity.name = "name2"
         await database_sync_to_async(entity.save)()
-        await propagate_entity_signal(CHANGE_TYPE_UPDATE)
-        packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["object_id"], "43")
-        self.assertEquals(packet["change_type"], "UPDATE")
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "object_id": "43",
+                "change_type": "UPDATE",
+                "subscription_id": self.subscription_id2.hex,
+            },
+        )
 
         # Unsubscribe from updates.
         @database_sync_to_async
@@ -213,13 +189,17 @@ class ObserverTestCase(TransactionTestCase):
 
         entity.name = "name2"
         await database_sync_to_async(entity.save)()
-        await self.assert_empty_channel(channel)
+        await self.assert_no_more_messages(client)
 
         await database_sync_to_async(entity.delete)()
-        await propagate_entity_signal(CHANGE_TYPE_DELETE)
-        packet = json.loads(await client.receive_from())
-        self.assertEquals(packet["object_id"], "43")
-        self.assertEquals(packet["change_type"], "DELETE")
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "object_id": "43",
+                "change_type": "DELETE",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
 
         await client.disconnect()
 
@@ -232,7 +212,9 @@ class ObserverTestCase(TransactionTestCase):
         @database_sync_to_async
         def subscribe():
             Subscription.objects.create(
-                user=self.user_alice, session_id="test_session"
+                user=self.user_alice,
+                session_id="test_session",
+                subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 resource_ids=[42],
@@ -245,13 +227,17 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_subscription_observer_count(0)
 
     async def test_observe_content_type(self):
-        channel = GROUP_SESSIONS.format(session_id="test_session")
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
+        connected, _ = await client.connect()
+        self.assertTrue(connected)
 
         # Create a subscription to the Data content_type.
         @database_sync_to_async
         def subscribe():
             Subscription.objects.create(
-                user=self.user_alice, session_id="test_session"
+                user=self.user_alice,
+                session_id="test_session",
+                subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 resource_ids=[None],
@@ -276,18 +262,15 @@ class ObserverTestCase(TransactionTestCase):
         data = await create_data()
 
         # Assert we detect creations.
-        message = {
-            "type": TYPE_ITEM_UPDATE,
-            "content_type_pk": ContentType.objects.get_for_model(Data).pk,
-            "change_type": CHANGE_TYPE_CREATE,
-            "object_id": "42",
-        }
-
-        async with async_timeout.timeout(1):
-            notify = await get_channel_layer().receive(channel)
-        self.assertDictEqual(notify, message)
-
-        await self.assert_empty_channel(channel)
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "change_type": CHANGE_TYPE_CREATE,
+                "object_id": "42",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
+        await self.assert_no_more_messages(client)
 
         # Delete the Data object
         @database_sync_to_async
@@ -297,24 +280,21 @@ class ObserverTestCase(TransactionTestCase):
         await delete_data(data)
 
         # Assert we detect deletions.
-        message = {
-            "type": TYPE_ITEM_UPDATE,
-            "content_type_pk": ContentType.objects.get_for_model(Data).pk,
-            "change_type": CHANGE_TYPE_DELETE,
-            "object_id": "42",
-        }
-
-        async with async_timeout.timeout(1):
-            notify = await get_channel_layer().receive(channel)
-        self.assertDictEqual(notify, message)
-
-        await self.assert_empty_channel(channel)
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "change_type": CHANGE_TYPE_DELETE,
+                "object_id": "42",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
+        await self.assert_no_more_messages(client)
 
         # Assert subscription didn't delete because Data got deleted.
         await self.await_subscription_observer_count(2)
 
     async def test_change_permission_group(self):
-        client = WebsocketCommunicator(self.client_consumer, "/ws/test-session")
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         connected, details = await client.connect()
         self.assertTrue(connected)
 
@@ -350,7 +330,9 @@ class ObserverTestCase(TransactionTestCase):
         @database_sync_to_async
         def subscribe():
             Subscription.objects.create(
-                user=self.user_bob, session_id="test_session"
+                user=self.user_bob,
+                session_id="test_session",
+                subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 resource_ids=[42],
@@ -369,21 +351,21 @@ class ObserverTestCase(TransactionTestCase):
         await change_permission_group(data)
 
         # Assert that Bob sees this as a deletion.
-        message = {
-            "type": TYPE_ITEM_UPDATE,
-            "content_type_pk": ContentType.objects.get_for_model(Data).pk,
-            "change_type": CHANGE_TYPE_DELETE,
-            "object_id": "42",
-        }
-
-        channel = GROUP_SESSIONS.format(session_id="test_session")
-        async with async_timeout.timeout(1):
-            notify = await get_channel_layer().receive(channel)
-        self.assertDictEqual(notify, message)
-
-        await self.assert_empty_channel(channel)
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "change_type": CHANGE_TYPE_DELETE,
+                "object_id": "42",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
+        await self.assert_no_more_messages(client)
 
     async def test_modify_permissions(self):
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
+        connected, details = await client.connect()
+        self.assertTrue(connected)
+
         # Create a new Data object.
         @database_sync_to_async
         def create_data():
@@ -402,7 +384,9 @@ class ObserverTestCase(TransactionTestCase):
         @database_sync_to_async
         def subscribe():
             Subscription.objects.create(
-                user=self.user_bob, session_id="test_session"
+                user=self.user_bob,
+                session_id="test_session",
+                subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 resource_ids=[None],
@@ -420,19 +404,15 @@ class ObserverTestCase(TransactionTestCase):
         await grant_permissions(data)
 
         # Assert we detect gaining permissions as creations.
-        message = {
-            "type": TYPE_ITEM_UPDATE,
-            "content_type_pk": ContentType.objects.get_for_model(Data).pk,
-            "change_type": CHANGE_TYPE_CREATE,
-            "object_id": "42",
-        }
-
-        channel = GROUP_SESSIONS.format(session_id="test_session")
-        async with async_timeout.timeout(1):
-            notify = await get_channel_layer().receive(channel)
-        self.assertDictEqual(notify, message)
-
-        await self.assert_empty_channel(channel)
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "change_type": CHANGE_TYPE_CREATE,
+                "object_id": "42",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
+        await self.assert_no_more_messages(client)
 
         # Revoke permissions for Bob.
         @database_sync_to_async
@@ -442,26 +422,28 @@ class ObserverTestCase(TransactionTestCase):
         await revoke_permissions(data)
 
         # Assert we detect losing permissions as deletions.
-        message = {
-            "type": TYPE_ITEM_UPDATE,
-            "content_type_pk": ContentType.objects.get_for_model(Data).pk,
-            "change_type": CHANGE_TYPE_DELETE,
-            "object_id": "42",
-        }
-
-        channel = GROUP_SESSIONS.format(session_id="test_session")
-        async with async_timeout.timeout(1):
-            notify = await get_channel_layer().receive(channel)
-        self.assertDictEqual(notify, message)
-
-        await self.assert_empty_channel(channel)
+        self.assertDictEqual(
+            json.loads(await client.receive_from()),
+            {
+                "change_type": CHANGE_TYPE_DELETE,
+                "object_id": "42",
+                "subscription_id": self.subscription_id.hex,
+            },
+        )
+        await self.assert_no_more_messages(client)
 
     async def test_observe_content_type_no_permissions(self):
+        client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
+        connected, details = await client.connect()
+        self.assertTrue(connected)
+
         # Create a subscription to the Data content_type by Bob.
         @database_sync_to_async
         def subscribe():
             Subscription.objects.create(
-                user=self.user_bob, session_id="test_session"
+                user=self.user_bob,
+                session_id="test_session",
+                subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 resource_ids=[None],
@@ -487,8 +469,7 @@ class ObserverTestCase(TransactionTestCase):
         data = await create_data()
 
         # Assert we don't detect creations (Bob doesn't have permissions).
-        channel = GROUP_SESSIONS.format(session_id="test_session")
-        await self.assert_empty_channel(channel)
+        await self.assert_no_more_messages(client)
 
         # Delete the Data object.
         @database_sync_to_async
@@ -498,8 +479,7 @@ class ObserverTestCase(TransactionTestCase):
         await delete_data(data)
 
         # Assert we don't detect deletions.
-        channel = GROUP_SESSIONS.format(session_id="test_session")
-        await self.assert_empty_channel(channel)
+        await self.assert_no_more_messages(client)
 
         # Assert subscription didn't delete.
         await self.await_subscription_observer_count(3)
