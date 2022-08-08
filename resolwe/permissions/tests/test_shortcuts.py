@@ -269,14 +269,14 @@ class ObjectPermsTestCase(TestCase):
             [],
         )
 
-        self.collection._permission(Permission.NONE, self.user1)
-        self.assertEqual(
+        self.collection.set_permission(Permission.NONE, self.user1)
+        self.assertCountEqual(
             self.collection.users_with_permission(Permission.VIEW),
             [self.user2],
         )
 
         self.collection.set_permission(Permission.VIEW, self.group1)
-        self.assertEqual(
+        self.assertCountEqual(
             self.collection.users_with_permission(Permission.VIEW),
             [self.user1, self.user2],
         )
