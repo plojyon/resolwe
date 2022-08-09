@@ -9,7 +9,6 @@ from channels.db import database_sync_to_async
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TransactionTestCase, override_settings
@@ -24,6 +23,7 @@ from resolwe.test import TransactionResolweAPITestCase
 
 from .consumers import ClientConsumer
 from .models import Observer, Subscription
+
 
 # If FLOW_MANAGER_DISABLE_AUTO_CALLS is False, Data objects will receive
 # an UPDATE signal before the CREATE signal.
@@ -140,6 +140,7 @@ class ObserverTestCase(TransactionTestCase):
             Permission.OWNER, self.user_alice
         )
 
+        # Assert we detect creations.
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
@@ -149,6 +150,7 @@ class ObserverTestCase(TransactionTestCase):
             },
         )
 
+        # Assert we detect modifications.
         obj.name = "name2"
         await database_sync_to_async(obj.save)()
         self.assertDictEqual(
@@ -507,6 +509,7 @@ class ObserverTestCase(TransactionTestCase):
         await delete_data(data)
 
         # Assert we don't detect deletions.
+        await database_sync_to_async(data.delete)()
         await self.assert_no_more_messages(client)
 
         # Assert subscription didn't delete.
@@ -519,7 +522,6 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
         self.resource_name = "data"
         super().setUp()
         self.list_view = self.viewset.as_view({"get": "subscribe"})
-        # self.detail_view = self.viewset.as_view({"get": "subscribe_detail"})
 
         user_model = get_user_model()
         self.user_alice = user_model.objects.create(
