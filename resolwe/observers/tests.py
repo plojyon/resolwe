@@ -9,9 +9,10 @@ from channels.db import database_sync_to_async
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from django.urls import path
 
 from rest_framework import status
@@ -24,7 +25,9 @@ from resolwe.test import TransactionResolweAPITestCase
 from .consumers import ClientConsumer
 from .models import Observer, Subscription
 
-
+# If FLOW_MANAGER_DISABLE_AUTO_CALLS is False, Data objects will receive
+# an UPDATE signal before the CREATE signal.
+@override_settings(FLOW_MANAGER_DISABLE_AUTO_CALLS=True)
 class ObserverTestCase(TransactionTestCase):
     def setUp(self):
         super().setUp()
@@ -97,7 +100,7 @@ class ObserverTestCase(TransactionTestCase):
                 )
             )
 
-    async def test_websocket_subscribe_unsubscribe(self):
+    async def websocket_subscribe_unsubscribe(self, Object, create_obj):
         client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
         connected, _ = await client.connect()
         self.assertTrue(connected)
@@ -111,7 +114,7 @@ class ObserverTestCase(TransactionTestCase):
                 session_id="test_session",
                 subscription_id=self.subscription_id,
             ).subscribe(
-                content_type=ContentType.objects.get_for_model(Entity),
+                content_type=ContentType.objects.get_for_model(Object),
                 resource_ids=[43],
                 change_types=["CREATE", "DELETE"],
             )
@@ -120,7 +123,7 @@ class ObserverTestCase(TransactionTestCase):
                 session_id="test_session",
                 subscription_id=self.subscription_id2,
             ).subscribe(
-                content_type=ContentType.objects.get_for_model(Entity),
+                content_type=ContentType.objects.get_for_model(Object),
                 resource_ids=[43],
                 change_types=["UPDATE"],
             )
@@ -131,19 +134,11 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_object_count(Observer, 3)
         await self.await_subscription_observer_count(3)
 
-        # Create an Entity object.
-        @database_sync_to_async
-        def create_entity():
-            entity = Entity.objects.create(
-                pk=43,
-                name="Test entity",
-                slug="test-entity",
-                contributor=self.user_alice,
-            )
-            entity.set_permission(Permission.OWNER, self.user_alice)
-            return entity
-
-        entity = await create_entity()
+        # Create an object.
+        obj = await create_obj(pk=43)
+        await database_sync_to_async(obj.set_permission)(
+            Permission.OWNER, self.user_alice
+        )
 
         self.assertDictEqual(
             json.loads(await client.receive_from()),
@@ -154,8 +149,8 @@ class ObserverTestCase(TransactionTestCase):
             },
         )
 
-        entity.name = "name2"
-        await database_sync_to_async(entity.save)()
+        obj.name = "name2"
+        await database_sync_to_async(obj.save)()
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
@@ -179,11 +174,13 @@ class ObserverTestCase(TransactionTestCase):
         await self.await_object_count(Observer, 2)
         await self.await_subscription_observer_count(2)
 
-        entity.name = "name2"
-        await database_sync_to_async(entity.save)()
+        # Assert we don't detect updates anymore.
+        obj.name = "name2"
+        await database_sync_to_async(obj.save)()
         await self.assert_no_more_messages(client)
 
-        await database_sync_to_async(entity.delete)()
+        # Assert we detect deletions.
+        await database_sync_to_async(obj.delete)()
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
@@ -194,6 +191,45 @@ class ObserverTestCase(TransactionTestCase):
         )
 
         await client.disconnect()
+
+    async def test_websocket_subscribe_unsubscribe_collection(self):
+        @database_sync_to_async
+        def create_collection(pk):
+            return Collection.objects.create(
+                pk=pk,
+                name="Test collection",
+                slug="test-collection",
+                contributor=self.user_alice,
+            )
+
+        await self.websocket_subscribe_unsubscribe(Collection, create_collection)
+
+    async def test_websocket_subscribe_unsubscribe_data(self):
+        @database_sync_to_async
+        def create_data(pk):
+            data = Data.objects.create(
+                pk=pk,
+                name="Test data",
+                slug="test-data",
+                contributor=self.user_alice,
+                process=self.process,
+                size=0,
+            )
+            return data
+
+        await self.websocket_subscribe_unsubscribe(Data, create_data)
+
+    async def test_websocket_subscribe_unsubscribe_entity(self):
+        @database_sync_to_async
+        def create_entity(pk):
+            return Entity.objects.create(
+                pk=pk,
+                name="Test entity",
+                slug="test-entity",
+                contributor=self.user_alice,
+            )
+
+        await self.websocket_subscribe_unsubscribe(Entity, create_entity)
 
     async def test_remove_observers_after_socket_close(self):
         client = WebsocketCommunicator(self.client_consumer, "/ws/test_session")
