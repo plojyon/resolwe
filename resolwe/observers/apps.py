@@ -9,5 +9,5 @@ class BaseConfig(AppConfig):
 
     def ready(self):
         """Application initialization."""
-        # Register signals handlers
+        # Register signals handlers.
         from . import signals  # noqa: F401

@@ -32,9 +32,9 @@ class Observer(models.Model):
         (CHANGE_TYPE_DELETE, "delete"),
     )
 
-    # Table of the observed resource
+    # Table of the observed resource.
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    # Primary key of the observed resource (null if watching the whole table)
+    # Primary key of the observed resource (null if watching the whole table).
     object_id = models.PositiveIntegerField(null=True)
 
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
@@ -127,9 +127,9 @@ class Subscription(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
 
-    # ID of the websocket session (can have multiple observers)
+    # ID of the websocket session (can have multiple observers).
     session_id = models.CharField(max_length=100)
-    # Unique ID for the client to remember which subscription a signal belongs to
+    # Unique ID for the client to remember which subscription a signal belongs to.
     subscription_id = models.UUIDField(
         unique=True, default=get_random_uuid, editable=False
     )
