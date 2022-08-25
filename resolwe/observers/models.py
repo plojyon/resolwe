@@ -11,15 +11,9 @@ from django.db import models, transaction
 from django.db.models import Count, Q
 from django.db.models.query import QuerySet
 
-from resolwe.permissions.models import Permission
+from resolwe.permissions.models import Permission, PermissionObject
 
-from .protocol import (
-    CHANGE_TYPE_CREATE,
-    CHANGE_TYPE_DELETE,
-    CHANGE_TYPE_UPDATE,
-    GROUP_SESSIONS,
-    TYPE_ITEM_UPDATE,
-)
+from .protocol import ChangeType, GROUP_SESSIONS, TYPE_ITEM_UPDATE
 
 
 def get_random_uuid() -> str:
@@ -35,23 +29,23 @@ class Observer(models.Model):
     """
 
     CHANGE_TYPES = (
-        (CHANGE_TYPE_CREATE, "create"),
-        (CHANGE_TYPE_UPDATE, "update"),
-        (CHANGE_TYPE_DELETE, "delete"),
+        (ChangeType.CREATE, "create"),
+        (ChangeType.UPDATE, "update"),
+        (ChangeType.DELETE, "delete"),
     )
 
-    #: Table of the observed resource.
+    #: table of the observed resource
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    #: Primary key of the observed resource (null if watching the whole table).
+    #: primary key of the observed resource (null if watching the whole table)
     object_id = models.PositiveIntegerField(null=True)
-    #: The type of change to observe for.
+    #: the type of change to observe for
     change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
 
     class Meta:
-        """Meta parameters for the Observer model."""
+        """Add index to session_id field and set defining fields."""
 
-        unique_together = ("content_type", "object_id", "change_type")
         indexes = [models.Index(fields=["object_id"])]
+        unique_together = ("content_type", "object_id", "change_type")
 
     @classmethod
     def get_interested(
@@ -68,7 +62,7 @@ class Observer(models.Model):
         return cls.objects.filter(query)
 
     @classmethod
-    def observe_instance_changes(cls, instance: any, change_type: str):
+    def observe_instance_changes(cls, instance: PermissionObject, change_type: str):
         """Handle a notification about an instance change."""
 
         observers = Observer.get_interested(
@@ -79,11 +73,9 @@ class Observer(models.Model):
 
         # Forward the message to the appropriate groups.
         for subscriber in Subscription.objects.filter(observers__in=observers):
-            if not instance.has_permission(Permission.VIEW, subscriber.user):
-                continue
-
-            # Register on_commit callbacks to send the signals.
-            Subscription.notify(subscriber.session_id, instance, change_type)
+            if instance.has_permission(Permission.VIEW, subscriber.user):
+                # Register on_commit callbacks to send the signals.
+                Subscription.notify(subscriber.session_id, instance, change_type)
 
     @classmethod
     def observe_permission_changes(
@@ -132,25 +124,25 @@ class Subscription(models.Model):
     between them.
     """
 
-    #: Observers to whom the subscription is listening.
+    #: observers to whom the subscription is listening
     observers = models.ManyToManyField("Observer", related_name="subscriptions")
-    #: Subscriber's user reference.
+    #: subscriber's user reference
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
     )
-    #: Subscription time.
+    #: subscription time
     created = models.DateTimeField(auto_now_add=True)
 
-    #: ID of the websocket session (one session may have multiple observers).
+    #: ID of the websocket session (one session may have multiple observers)
     session_id = models.CharField(max_length=100)
-    #: Unique ID for the client to remember which subscription a signal belongs to.
+    #: unique ID for the client to remember which subscription a signal belongs to
     subscription_id = models.UUIDField(
         unique=True, default=get_random_uuid, editable=False
     )
 
     class Meta:
-        """Meta parameters for the Subscription model."""
+        """Add index to session_id field."""
 
         indexes = [models.Index(fields=["session_id"])]
 
@@ -179,13 +171,13 @@ class Subscription(models.Model):
         super().delete()
 
     @classmethod
-    def notify(cls, session_id: str, instance: any, change_type: str):
+    def notify(cls, session_id: str, instance: PermissionObject, change_type: str):
         """Register a callback to send a change notification on transaction commit."""
         notification = {
             "type": TYPE_ITEM_UPDATE,
             "content_type_pk": ContentType.objects.get_for_model(instance).pk,
             "change_type": change_type,
-            "object_id": str(instance.pk),
+            "object_id": instance.pk,
         }
 
         # Define a callback, but copy variable values.

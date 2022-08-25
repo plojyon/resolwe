@@ -7,7 +7,7 @@ from channels.generic.websocket import JsonWebsocketConsumer
 from django.contrib.contenttypes.models import ContentType
 
 from .models import Observer, Subscription
-from .protocol import CHANGE_TYPE_DELETE, GROUP_SESSIONS
+from .protocol import ChangeType, GROUP_SESSIONS
 
 
 class ClientConsumer(JsonWebsocketConsumer):
@@ -50,7 +50,7 @@ class ClientConsumer(JsonWebsocketConsumer):
             .distinct()
         ]
 
-        if change_type == CHANGE_TYPE_DELETE:
+        if change_type == ChangeType.DELETE:
             # The observed object was either deleted or the user lost permissions.
             subscription = Subscription.objects.get(session_id=self.session_id)
             observers = Observer.objects.filter(

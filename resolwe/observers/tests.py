@@ -23,7 +23,7 @@ from resolwe.test import TransactionResolweAPITestCase
 
 from .consumers import ClientConsumer
 from .models import Observer, Subscription
-
+from .protocol import ChangeType
 
 # If FLOW_MANAGER_DISABLE_AUTO_CALLS is False, Data objects will receive
 # an UPDATE signal before the CREATE signal.
@@ -116,7 +116,7 @@ class ObserverTestCase(TransactionTestCase):
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Object),
                 object_ids=[43],
-                change_types=["CREATE", "DELETE"],
+                change_types=[ChangeType.CREATE, ChangeType.DELETE],
             )
             Subscription.objects.create(
                 user=self.user_alice,
@@ -125,7 +125,7 @@ class ObserverTestCase(TransactionTestCase):
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Object),
                 object_ids=[43],
-                change_types=["UPDATE"],
+                change_types=[ChangeType.UPDATE],
             )
 
         await subscribe()
@@ -156,8 +156,8 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "object_id": "43",
-                "change_type": "UPDATE",
+                "object_id": 43,
+                "change_type": ChangeType.UPDATE,
                 "subscription_id": self.subscription_id2.hex,
             },
         )
@@ -166,7 +166,7 @@ class ObserverTestCase(TransactionTestCase):
         @database_sync_to_async
         def unsubscribe():
             Subscription.objects.get(
-                observers__object_id=43, observers__change_type="UPDATE"
+                observers__object_id=43, observers__change_type=ChangeType.UPDATE
             ).delete()
 
         await unsubscribe()
@@ -186,8 +186,8 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "object_id": "43",
-                "change_type": "DELETE",
+                "object_id": 43,
+                "change_type": ChangeType.DELETE,
                 "subscription_id": self.subscription_id.hex,
             },
         )
@@ -248,7 +248,7 @@ class ObserverTestCase(TransactionTestCase):
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 object_ids=[42],
-                change_types=["UPDATE"],
+                change_types=[ChangeType.UPDATE],
             )
 
         await subscribe()
@@ -271,7 +271,7 @@ class ObserverTestCase(TransactionTestCase):
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 object_ids=[None],
-                change_types=["CREATE", "DELETE"],
+                change_types=[ChangeType.CREATE, ChangeType.DELETE],
             )
 
         await subscribe()
@@ -313,8 +313,8 @@ class ObserverTestCase(TransactionTestCase):
         self.assertDictEqual(
             json.loads(await client.receive_from()),
             {
-                "change_type": "DELETE",
-                "object_id": "42",
+                "change_type": ChangeType.DELETE,
+                "object_id": 43,
                 "subscription_id": self.subscription_id.hex,
             },
         )
@@ -475,7 +475,7 @@ class ObserverTestCase(TransactionTestCase):
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
                 object_ids=[None],
-                change_types=["CREATE", "UPDATE", "DELETE"],
+                change_types=[ChangeType.CREATE, ChangeType.UPDATE, ChangeType.DELETE],
             )
 
         await subscribe()
@@ -559,7 +559,7 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
         self.assertEqual(Observer.objects.count(), 1)
         self.assertEqual(
             Observer.objects.filter(
-                change_type="CREATE",
+                change_type=ChangeType.CREATE,
                 object_id=None,
                 content_type=ContentType.objects.get_for_model(Data),
             ).count(),
@@ -582,7 +582,7 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
         self.assertEqual(Observer.objects.count(), 3)
         self.assertEqual(
             Observer.objects.filter(
-                change_type="UPDATE",
+                change_type=ChangeType.UPDATE,
                 object_id=42,
                 content_type=ContentType.objects.get_for_model(Data),
             ).count(),
@@ -590,7 +590,7 @@ class ObserverAPITestCase(TransactionResolweAPITestCase):
         )
         self.assertEqual(
             Observer.objects.filter(
-                change_type="DELETE",
+                change_type=ChangeType.DELETE,
                 object_id=42,
                 content_type=ContentType.objects.get_for_model(Data),
             ).count(),

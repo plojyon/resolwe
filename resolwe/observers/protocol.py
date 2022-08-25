@@ -1,16 +1,21 @@
 """Constants used for Observer communication."""
 from django import dispatch
+from enum import Enum, auto
+
+
+class ChangeType(Enum):
+    """Types of database changes."""
+
+    CREATE = auto()
+    UPDATE = auto()
+    DELETE = auto()
+
 
 # Group used for individual sessions.
 GROUP_SESSIONS = "observers.session.{session_id}"
 
 # Message type for observer item updates.
 TYPE_ITEM_UPDATE = "observers.item_update"
-
-# Types of database changes.
-CHANGE_TYPE_CREATE = "CREATE"
-CHANGE_TYPE_UPDATE = "UPDATE"
-CHANGE_TYPE_DELETE = "DELETE"
 
 # Signal to be sent before and after PermissionObject.set_permission is called
 # or before and after a PermissionObject's container is changed.

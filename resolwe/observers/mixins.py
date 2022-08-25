@@ -10,13 +10,13 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .models import Subscription
-from .protocol import CHANGE_TYPE_CREATE, CHANGE_TYPE_DELETE, CHANGE_TYPE_UPDATE
+from .protocol import ChangeType
 
 
 class ObservableMixin:
     """A Mixin to make a model ViewSet observable.
 
-    Adds the /subscribe and /unsubscribe endpoints to the list view.
+    Add the subscribe and unsubscribe endpoints to the list view.
     """
 
     def user_has_permission(self, id: int, user: User) -> bool:
@@ -35,14 +35,14 @@ class ObservableMixin:
 
         if ids is None:
             # Subscribe to the whole table.
-            subscription.subscribe(content_type, [None], (CHANGE_TYPE_CREATE,))
+            subscription.subscribe(content_type, [None], (ChangeType.CREATE,))
         else:
             # Verify all ids exists and user has permissions to view them.
             for id in ids:
                 if not self.user_has_permission(id, request.user):
                     raise NotFound(f"Item {id} does not exist")
 
-            change_types = (CHANGE_TYPE_UPDATE, CHANGE_TYPE_DELETE)
+            change_types = (ChangeType.UPDATE, ChangeType.DELETE)
             subscription.subscribe(content_type, ids, change_types)
 
         resp = json.dumps({"subscription_id": subscription.subscription_id})
@@ -52,12 +52,14 @@ class ObservableMixin:
     def unsubscribe(self, request: Request) -> Response:
         """Unregister a subscription."""
         subscription_id = request.query_params.get("subscription_id", None)
-        subscriptions = Subscription.objects.filter(
+        subscription = Subscription.objects.filter(
             pk=subscription_id, user=request.user
-        )
+        ).first()
 
-        if subscriptions.count() != 1:
-            raise NotFound(f"{subscription_id} is an invalid subscription_id")
+        if subscription is None:
+            raise NotFound(
+                f"Subscription {subscription_id} for user {request.user} does not exist."
+            )
 
-        subscriptions.first().delete()
+        subscription.delete()
         return Response()

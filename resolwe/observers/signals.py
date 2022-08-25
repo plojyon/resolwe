@@ -6,12 +6,7 @@ from django.db.models import signals as model_signals
 from resolwe.permissions.models import Permission, PermissionObject
 
 from .models import Observer
-from .protocol import (
-    CHANGE_TYPE_DELETE,
-    CHANGE_TYPE_UPDATE,
-    post_permission_changed,
-    pre_permission_changed,
-)
+from .protocol import ChangeType, post_permission_changed, pre_permission_changed
 
 # Global 'in migrations' flag to ignore signals during migrations.
 # Signal handlers that access the database can crash the migration process.
@@ -62,22 +57,17 @@ def observe_model_modification(
     sender: type, instance: PermissionObject, created: bool = False, **kwargs
 ):
     """Receive model updates."""
-    global IN_MIGRATIONS
-    if IN_MIGRATIONS:
-        return
 
     # Create signals will be caught when the PermissionModel is added.
     if created:
         return
 
-    Observer.observe_instance_changes(instance, CHANGE_TYPE_UPDATE)
+    if not IN_MIGRATIONS:
+        Observer.observe_instance_changes(instance, ChangeType.UPDATE)
 
 
 @dispatch.receiver(model_signals.pre_delete)
 def observe_model_deletion(sender: type, instance: PermissionObject, **kwargs):
     """Receive model deletions."""
-    global IN_MIGRATIONS
-    if IN_MIGRATIONS:
-        return
-
-    Observer.observe_instance_changes(instance, CHANGE_TYPE_DELETE)
+    if not IN_MIGRATIONS:
+        Observer.observe_instance_changes(instance, ChangeType.DELETE)

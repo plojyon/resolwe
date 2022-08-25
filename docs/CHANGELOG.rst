@@ -12,8 +12,8 @@ Unreleased
 
 Added
 -----
-- Add model observers that notify clients about database changes via a
-  websocket connection
+- Add model observers that notify clients about model changes via a websocket
+  connection
 
 
 ===================
