@@ -1,10 +1,12 @@
 """Mixins for Observable ViewSets."""
 import json
 
+from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .models import Subscription
@@ -17,12 +19,12 @@ class ObservableMixin:
     Adds the /subscribe and /unsubscribe endpoints to the list view.
     """
 
-    def user_has_permission(self, id, user):
+    def user_has_permission(self, id: int, user: User) -> bool:
         """Verify that an object exists for a given user."""
         return self.get_queryset().filter(pk=id).filter_for_user(user).exists()
 
     @action(detail=False, methods=["post"])
-    def subscribe(self, request):
+    def subscribe(self, request: Request) -> Response:
         """Register an Observer for a resource."""
         ids = dict(request.query_params).get("ids", None)
         session_id = request.query_params.get("session_id")
@@ -47,7 +49,7 @@ class ObservableMixin:
         return Response(resp)
 
     @action(detail=False, methods=["post"])
-    def unsubscribe(self, request):
+    def unsubscribe(self, request: Request) -> Response:
         """Unregister a subscription."""
         subscription_id = request.query_params.get("subscription_id", None)
         subscriptions = Subscription.objects.filter(

@@ -115,7 +115,7 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Object),
-                resource_ids=[43],
+                object_ids=[43],
                 change_types=["CREATE", "DELETE"],
             )
             Subscription.objects.create(
@@ -124,7 +124,7 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id2,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Object),
-                resource_ids=[43],
+                object_ids=[43],
                 change_types=["UPDATE"],
             )
 
@@ -247,7 +247,7 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
-                resource_ids=[42],
+                object_ids=[42],
                 change_types=["UPDATE"],
             )
 
@@ -270,7 +270,7 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
-                resource_ids=[None],
+                object_ids=[None],
                 change_types=["CREATE", "DELETE"],
             )
 
@@ -365,18 +365,16 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
-                resource_ids=[42],
+                object_ids=[42],
                 change_types=["UPDATE", "DELETE"],
             )
 
         await subscribe()
 
-        # Reset the PermissionGroup of the Data object
-        # (removes permissions to Bob)
+        # Reset the PermissionGroup of the Data object (removes permissions to Bob)
         @database_sync_to_async
         def change_permission_group(data):
             data.move_to_collection(self.collection2)
-            # data.save()
 
         await change_permission_group(data)
 
@@ -419,7 +417,7 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
-                resource_ids=[None],
+                object_ids=[None],
                 change_types=["CREATE", "UPDATE", "DELETE"],
             )
 
@@ -476,7 +474,7 @@ class ObserverTestCase(TransactionTestCase):
                 subscription_id=self.subscription_id,
             ).subscribe(
                 content_type=ContentType.objects.get_for_model(Data),
-                resource_ids=[None],
+                object_ids=[None],
                 change_types=["CREATE", "UPDATE", "DELETE"],
             )
 
@@ -509,7 +507,6 @@ class ObserverTestCase(TransactionTestCase):
         await delete_data(data)
 
         # Assert we don't detect deletions.
-        await database_sync_to_async(data.delete)()
         await self.assert_no_more_messages(client)
 
         # Assert subscription didn't delete.

@@ -3,7 +3,7 @@
 from django import dispatch
 from django.db.models import signals as model_signals
 
-from resolwe.permissions.models import Permission
+from resolwe.permissions.models import Permission, PermissionObject
 
 from .models import Observer
 from .protocol import (
@@ -58,7 +58,9 @@ def handle_permission_change(instance, **kwargs):
 
 
 @dispatch.receiver(model_signals.post_save)
-def observe_model_modification(sender, instance, created=False, **kwargs):
+def observe_model_modification(
+    sender: type, instance: PermissionObject, created: bool = False, **kwargs
+):
     """Receive model updates."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
@@ -72,7 +74,7 @@ def observe_model_modification(sender, instance, created=False, **kwargs):
 
 
 @dispatch.receiver(model_signals.pre_delete)
-def observe_model_deletion(sender, instance, **kwargs):
+def observe_model_deletion(sender: type, instance: PermissionObject, **kwargs):
     """Receive model deletions."""
     global IN_MIGRATIONS
     if IN_MIGRATIONS:
