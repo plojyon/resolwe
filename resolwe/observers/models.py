@@ -13,7 +13,7 @@ from django.db.models.query import QuerySet
 
 from resolwe.permissions.models import Permission, PermissionObject
 
-from .protocol import ChangeType, GROUP_SESSIONS, TYPE_ITEM_UPDATE
+from .protocol import GROUP_SESSIONS, TYPE_ITEM_UPDATE, ChangeType
 
 
 def get_random_uuid() -> str:
@@ -28,18 +28,14 @@ class Observer(models.Model):
     Several subscriptions can subscribe to the same observer.
     """
 
-    CHANGE_TYPES = (
-        (ChangeType.CREATE, "create"),
-        (ChangeType.UPDATE, "update"),
-        (ChangeType.DELETE, "delete"),
-    )
+    CHANGE_TYPES = [(change.value, change.name) for change in ChangeType]
 
     #: table of the observed resource
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     #: primary key of the observed resource (null if watching the whole table)
     object_id = models.PositiveIntegerField(null=True)
     #: the type of change to observe for
-    change_type = models.CharField(choices=CHANGE_TYPES, max_length=6)
+    change_type = models.PositiveSmallIntegerField(choices=CHANGE_TYPES)
 
     class Meta:
         """Add index to session_id field and set defining fields."""
@@ -52,17 +48,19 @@ class Observer(models.Model):
         cls,
         content_type: ContentType,
         object_id: Optional[int] = None,
-        change_type: Optional[str] = None,
+        change_type: Optional[ChangeType] = None,
     ) -> "QuerySet[Observer]":
         """Find all observers watching for changes of a given item/table."""
         query = Q(content_type=content_type)
         if change_type is not None:
-            query &= Q(change_type=change_type)
+            query &= Q(change_type=change_type.value)
         query &= Q(object_id=object_id) | Q(object_id__isnull=True)
         return cls.objects.filter(query)
 
     @classmethod
-    def observe_instance_changes(cls, instance: PermissionObject, change_type: str):
+    def observe_instance_changes(
+        cls, instance: PermissionObject, change_type: ChangeType
+    ):
         """Handle a notification about an instance change."""
 
         observers = Observer.get_interested(
@@ -87,8 +85,8 @@ class Observer(models.Model):
         only relevant observers will be notified of the instance's creation/deletion.
         """
         for change_type, user_ids in (
-            (CHANGE_TYPE_CREATE, gains),
-            (CHANGE_TYPE_DELETE, losses),
+            (ChangeType.CREATE, gains),
+            (ChangeType.DELETE, losses),
         ):
             # A shortcut if nothing actually changed.
             if len(user_ids) == 0:
@@ -150,13 +148,15 @@ class Subscription(models.Model):
         self,
         content_type: ContentType,
         object_ids: List[Optional[int]],
-        change_types: List[str],
+        change_types: List[ChangeType],
     ):
         """Assign self to multiple observers at once."""
         for id in object_ids:
             for change_type in change_types:
                 observer, _ = Observer.objects.get_or_create(
-                    content_type=content_type, object_id=id, change_type=change_type
+                    content_type=content_type,
+                    object_id=id,
+                    change_type=change_type.value,
                 )
                 self.observers.add(observer)
 
@@ -171,12 +171,14 @@ class Subscription(models.Model):
         super().delete()
 
     @classmethod
-    def notify(cls, session_id: str, instance: PermissionObject, change_type: str):
+    def notify(
+        cls, session_id: str, instance: PermissionObject, change_type: ChangeType
+    ):
         """Register a callback to send a change notification on transaction commit."""
         notification = {
             "type": TYPE_ITEM_UPDATE,
             "content_type_pk": ContentType.objects.get_for_model(instance).pk,
-            "change_type": change_type,
+            "change_type_value": change_type.value,
             "object_id": instance.pk,
         }
 

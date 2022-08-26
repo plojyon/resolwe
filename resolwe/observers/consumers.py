@@ -1,13 +1,13 @@
 """Consumers for Observers."""
 
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from channels.generic.websocket import JsonWebsocketConsumer
 
 from django.contrib.contenttypes.models import ContentType
 
 from .models import Observer, Subscription
-from .protocol import ChangeType, GROUP_SESSIONS
+from .protocol import GROUP_SESSIONS, ChangeType
 
 
 class ClientConsumer(JsonWebsocketConsumer):
@@ -33,11 +33,11 @@ class ClientConsumer(JsonWebsocketConsumer):
         Subscription.objects.filter(session_id=self.session_id).delete()
         self.close()
 
-    def observers_item_update(self, msg: Dict[str, str]):
+    def observers_item_update(self, msg: Dict[str, Union[str, int]]):
         """Handle an item update signal."""
         content_type = ContentType.objects.get_for_id(msg["content_type_pk"])
         object_id = msg["object_id"]
-        change_type = msg["change_type"]
+        change_type = ChangeType(msg["change_type_value"])
 
         interested = Observer.get_interested(
             content_type=content_type, object_id=object_id, change_type=change_type
@@ -65,6 +65,6 @@ class ClientConsumer(JsonWebsocketConsumer):
                 {
                     "subscription_id": subscription_id,
                     "object_id": object_id,
-                    "change_type": change_type,
+                    "change_type": change_type.name,
                 }
             )

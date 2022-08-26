@@ -1,6 +1,7 @@
 """Constants used for Observer communication."""
-from django import dispatch
 from enum import Enum, auto
+
+from django import dispatch
 
 
 class ChangeType(Enum):

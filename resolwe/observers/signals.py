@@ -30,26 +30,20 @@ def model_post_migrate(*args, **kwargs):
 @dispatch.receiver(pre_permission_changed)
 def prepare_permission_change(instance, **kwargs):
     """Store old permissions for an object whose permissions are about to change."""
-    global IN_MIGRATIONS
-    if IN_MIGRATIONS:
-        return
-
-    instance._old_viewers = instance.users_with_permission(Permission.VIEW)
+    if not IN_MIGRATIONS:
+        instance._old_viewers = instance.users_with_permission(Permission.VIEW)
 
 
 @dispatch.receiver(post_permission_changed)
 def handle_permission_change(instance, **kwargs):
     """Compare permissions for an object whose permissions changed."""
-    global IN_MIGRATIONS
-    if IN_MIGRATIONS:
-        return
+    if not IN_MIGRATIONS:
+        new = set(instance.users_with_permission(Permission.VIEW))
+        old = set(instance._old_viewers)
 
-    new = set(instance.users_with_permission(Permission.VIEW))
-    old = set(instance._old_viewers)
-
-    gains = new - old
-    losses = old - new
-    Observer.observe_permission_changes(instance, gains, losses)
+        gains = new - old
+        losses = old - new
+        Observer.observe_permission_changes(instance, gains, losses)
 
 
 @dispatch.receiver(model_signals.post_save)
