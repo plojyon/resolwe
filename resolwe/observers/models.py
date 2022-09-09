@@ -15,6 +15,10 @@ from resolwe.permissions.models import Permission, PermissionObject
 
 from .protocol import GROUP_SESSIONS, TYPE_ITEM_UPDATE, ChangeType
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def get_random_uuid() -> str:
     """Generate a random UUID in string format."""
@@ -63,11 +67,15 @@ class Observer(models.Model):
     ):
         """Handle a notification about an instance change."""
 
+        logger.warning(f"Observing instance {change_type} of {instance}")
+
         observers = Observer.get_interested(
             change_type=change_type,
             content_type=ContentType.objects.get_for_model(instance),
             object_id=instance.pk,
         )
+
+        logger.warning(f"interesteds: {observers}")
 
         # Forward the message to the appropriate groups.
         for subscriber in Subscription.objects.filter(observers__in=observers):
@@ -98,12 +106,19 @@ class Observer(models.Model):
                 content_type=ContentType.objects.get_for_model(instance),
                 object_id=instance.pk,
             )
+            logger.warning(
+                f'interesteds {interested}, { {"change_type": change_type, "content_type": ContentType.objects.get_for_model(instance), "object_id": instance.pk} }'
+            )
+
             # Of all interested users, select only those whose permissions changed.
             session_ids = set(
                 Subscription.objects.filter(observers__in=interested)
                 .filter(user__in=user_ids)
                 .values_list("session_id", flat=True)
                 .distinct()
+            )
+            logger.warning(
+                f"Observers interested in (W,L) {gains, losses} = {session_ids}"
             )
 
             for session_id in session_ids:

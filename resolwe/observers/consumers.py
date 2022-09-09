@@ -9,6 +9,10 @@ from django.contrib.contenttypes.models import ContentType
 from .models import Observer, Subscription
 from .protocol import GROUP_SESSIONS, ChangeType
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ClientConsumer(JsonWebsocketConsumer):
     """Consumer for client communication."""
@@ -60,7 +64,11 @@ class ClientConsumer(JsonWebsocketConsumer):
             # Assure we don't stay subscribed to an illegal object.
             subscription.observers.remove(*observers)
 
+        logger.warning(f"Ide gas {subscription_ids}")
         for subscription_id in subscription_ids:
+            logger.warning(
+                f'Sending to {subscription_id}, { {"subscription_id": subscription_id,"object_id": object_id,"change_type": change_type.name} }'
+            )
             self.send_json(
                 {
                     "subscription_id": subscription_id,

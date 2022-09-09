@@ -28,6 +28,11 @@ before_processing = Signal()
 post_duplicate = Signal()
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def commit_signal(data: Data, created: bool, update_fields: Optional[List[str]]):
     """Nudge manager at the end of every Data object save event.
 
@@ -49,6 +54,7 @@ def manager_post_save_handler(sender, instance: Data, created: bool, **kwargs):
         or instance.status == Data.STATUS_ERROR
         or created
     ):
+        logger.warning("Manager-Post-Save-Handler ran, what a scam")
         # Run manager at the end of the potential transaction. Otherwise
         # tasks are send to workers before transaction ends and therefore
         # workers cannot access objects created inside transaction.

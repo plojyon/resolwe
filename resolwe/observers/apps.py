@@ -2,6 +2,11 @@
 from django.apps import AppConfig
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class BaseConfig(AppConfig):
     """Application configuration."""
 
@@ -9,5 +14,6 @@ class BaseConfig(AppConfig):
 
     def ready(self):
         """Application initialization."""
+        logger.warning("REGISTERING SIGNALS")
         # Register signals handlers.
         from . import signals  # noqa: F401

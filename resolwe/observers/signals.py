@@ -13,6 +13,11 @@ from .protocol import ChangeType, post_permission_changed, pre_permission_change
 IN_MIGRATIONS = False
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 @dispatch.receiver(model_signals.pre_migrate)
 def model_pre_migrate(*args, **kwargs):
     """Set 'in migrations' flag."""
@@ -43,6 +48,9 @@ def handle_permission_change(instance, **kwargs):
 
         gains = new - old
         losses = old - new
+        logger.warning(
+            f"Observed permission change (W,L) = {gains, losses}. Instance = {instance}"
+        )
         Observer.observe_permission_changes(instance, gains, losses)
 
 
@@ -57,7 +65,13 @@ def observe_model_modification(
         return
 
     if isinstance(instance, PermissionObject) and not IN_MIGRATIONS:
+        logger.warning("Observed model modification")
         Observer.observe_instance_changes(instance, ChangeType.UPDATE)
+    else:
+        logger.warning(
+            f"Modified model, but sender is PermissionObject == {isinstance(instance, PermissionObject)}"
+        )
+        logger.warning(f"Model == {sender, instance}")
 
 
 @dispatch.receiver(model_signals.pre_delete)
@@ -65,3 +79,12 @@ def observe_model_deletion(sender: type, instance: Model, **kwargs):
     """Receive model deletions."""
     if isinstance(instance, PermissionObject) and not IN_MIGRATIONS:
         Observer.observe_instance_changes(instance, ChangeType.DELETE)
+
+
+from resolwe.flow.models import Data
+
+
+@dispatch.receiver(model_signals.post_save, sender=Data)
+def manager_post_save_handler(sender, instance: Data, created: bool, **kwargs):
+    """Dummy."""
+    logger.warning(f"Manager post save handler simulator ran :) created={created}")
