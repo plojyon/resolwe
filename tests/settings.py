@@ -71,11 +71,11 @@ ANONYMOUS_USER_NAME = "public"
 toxenv = os.environ.get("TOXENV", "")
 
 # Check if PostgreSQL settings are set via environment variables
-pgname = os.environ.get("RESOLWE_POSTGRESQL_NAME", "resolwe")
-pguser = os.environ.get("RESOLWE_POSTGRESQL_USER", "resolwe")
-pgpass = os.environ.get("RESOLWE_POSTGRESQL_PASS", "resolwe")
+pgname = os.environ.get("RESOLWE_POSTGRESQL_NAME", "genialis_base")
+pguser = os.environ.get("RESOLWE_POSTGRESQL_USER", "genialis_base")
+pgpass = os.environ.get("RESOLWE_POSTGRESQL_PASS", "genialis_base")
 pghost = os.environ.get("RESOLWE_POSTGRESQL_HOST", "localhost")
-pgport = int(os.environ.get("RESOLWE_POSTGRESQL_PORT", 55432))
+pgport = int(os.environ.get("RESOLWE_POSTGRESQL_PORT", 5432))
 
 DATABASES = {
     "default": {
@@ -271,7 +271,7 @@ CONSOLE_LEVEL = "WARNING"
 default_logger_handlers = ["file"]
 
 if github_actions:
-    CONSOLE_LEVEL = "DEBUG"
+    CONSOLE_LEVEL = "WARNING"
     default_logger_handlers = ["console", "file"]
 
 LOGGING = {
@@ -293,7 +293,7 @@ LOGGING = {
         },
         "auditlog": {
             "class": "logging.StreamHandler",
-            "level": "INFO",
+            "level": "ERROR",
             "formatter": "auditlog",
         },
         "file": {
@@ -306,11 +306,11 @@ LOGGING = {
     "loggers": {
         "": {
             "handlers": default_logger_handlers,
-            "level": "DEBUG",
+            "level": "ERROR",
         },
         "auditlog": {
             "handlers": ["auditlog"],
-            "level": "INFO",
+            "level": "ERROR",
         },
     },
 }

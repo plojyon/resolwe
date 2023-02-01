@@ -9,8 +9,9 @@ from rest_framework.response import Response
 
 from resolwe.permissions.models import get_anonymous_user
 
-from .models import Subscription
+from .models import Subscription, Observer
 from .protocol import ChangeType
+from .log import log, status
 
 
 class ObservableMixin:
@@ -32,6 +33,7 @@ class ObservableMixin:
         user = request.user if request.user.is_authenticated else get_anonymous_user()
         subscription = Subscription.objects.create(user=user, session_id=session_id)
 
+        log("Subscribe called")
         if ids is None:
             # Subscribe to the whole table.
             subscription.subscribe(content_type, [None], (ChangeType.CREATE,))
@@ -45,6 +47,15 @@ class ObservableMixin:
             subscription.subscribe(content_type, ids, change_types)
 
         resp = {"subscription_id": subscription.subscription_id}
+
+        log(
+            "Finished endpoint /subscribe",
+            ids=ids,
+            session_id=session_id,
+            subscription_id=subscription.subscription_id,
+        )
+        log(status(Observer, Subscription))
+
         return Response(resp)
 
     @action(detail=False, methods=["post"])
@@ -56,10 +67,18 @@ class ObservableMixin:
             subscription_id=subscription_id, user=user
         ).first()
 
+        log("Unsubscribe called")
         if subscription is None:
             raise NotFound(
                 f"Subscription {subscription_id} for user {user} does not exist."
             )
 
         subscription.delete()
+        log(
+            "Finished endpoint /unsubscribe",
+            user=user,
+            subscription_id=subscription_id,
+        )
+        log(status(Observer, Subscription))
+
         return Response()

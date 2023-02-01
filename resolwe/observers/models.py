@@ -14,6 +14,7 @@ from django.db.models.query import QuerySet
 from resolwe.permissions.models import Permission, PermissionObject
 
 from .protocol import GROUP_SESSIONS, TYPE_ITEM_UPDATE, ChangeType
+from .log import log, status
 
 
 def get_random_uuid() -> str:
@@ -151,6 +152,13 @@ class Subscription(models.Model):
         change_types: List[ChangeType],
     ):
         """Assign self to multiple observers at once."""
+        log(
+            "Subscribed to",
+            content_type,
+            object_ids,
+            change_types,
+            subscription_id=self.subscription_id,
+        )
         for id in object_ids:
             for change_type in change_types:
                 observer, _ = Observer.objects.get_or_create(
@@ -159,6 +167,7 @@ class Subscription(models.Model):
                     change_type=change_type.value,
                 )
                 self.observers.add(observer)
+                log("Added obsever", observer)
 
     def delete(self):
         """Delete the given subscription.
@@ -167,7 +176,15 @@ class Subscription(models.Model):
         """
         # Find related observers with only one remaining subscription
         # (it must be this one) and delete them first.
-        self.observers.annotate(subs=Count("subscriptions")).filter(subs=1).delete()
+        qs = Observer.objects.annotate(subs=Count("subscriptions")).filter(
+            subscriptions=self.pk, subs=1
+        )
+        log(qs.query)
+        log("Deleting subscription", self)
+        log("My observers: " + ",".join([str(o.pk) for o in self.observers.all()]))
+        log("Deleting:" + ",".join([f"{o.pk}={o.subs}" for o in qs]))
+        log(status(Observer, Subscription))
+        qs.delete()
         super().delete()
 
     @classmethod

@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from .models import Observer, Subscription
 from .protocol import GROUP_SESSIONS, ChangeType
+from .log import log
 
 
 class ClientConsumer(JsonWebsocketConsumer):
