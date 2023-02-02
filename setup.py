@@ -54,6 +54,7 @@ setuptools.setup(
         "django-versionfield~=1.0.2",
         "django-fernet-fields~=0.6",
         "django-priority-batch >=4.0a1, ==4.*",
+        "djangosaml2~=1.5.5",
         "Jinja2~=3.0.3",
         "jsonschema~=4.0.0",
         "plumbum~=1.7.2",

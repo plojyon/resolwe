@@ -6,6 +6,9 @@ import os
 import sys
 from distutils.util import strtobool
 from pathlib import Path
+import saml2
+import saml2.saml
+
 
 PROJECT_ROOT = Path(__file__).parent.resolve()
 
@@ -17,6 +20,7 @@ MIDDLEWARE = (
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "djangosaml2.middleware.SamlSessionMiddleware",
     "resolwe.auditlog.middleware.ResolweAuditMiddleware",
 )
 
@@ -30,6 +34,7 @@ INSTALLED_APPS = (
     "rest_framework",
     "django_filters",
     "versionfield",
+    "djangosaml2",
     "resolwe",
     "resolwe.permissions",
     "resolwe.flow",
@@ -58,7 +63,8 @@ TEMPLATES = [
 ]
 
 AUTHENTICATION_BACKENDS = (
-    "django.contrib.auth.backends.ModelBackend",
+    # "django.contrib.auth.backends.ModelBackend",
+    "djangosaml2.backends.Saml2Backend",
     "resolwe.permissions.permissions.ResolwePermissionBackend",
 )
 
@@ -71,11 +77,11 @@ ANONYMOUS_USER_NAME = "public"
 toxenv = os.environ.get("TOXENV", "")
 
 # Check if PostgreSQL settings are set via environment variables
-pgname = os.environ.get("RESOLWE_POSTGRESQL_NAME", "resolwe")
-pguser = os.environ.get("RESOLWE_POSTGRESQL_USER", "resolwe")
-pgpass = os.environ.get("RESOLWE_POSTGRESQL_PASS", "resolwe")
+pgname = os.environ.get("RESOLWE_POSTGRESQL_NAME", "genialis_base")
+pguser = os.environ.get("RESOLWE_POSTGRESQL_USER", "genialis_base")
+pgpass = os.environ.get("RESOLWE_POSTGRESQL_PASS", "genialis_base")
 pghost = os.environ.get("RESOLWE_POSTGRESQL_HOST", "localhost")
-pgport = int(os.environ.get("RESOLWE_POSTGRESQL_PORT", 55432))
+pgport = int(os.environ.get("RESOLWE_POSTGRESQL_PORT", 5432))
 
 DATABASES = {
     "default": {
@@ -229,6 +235,134 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": "%Y-%m-%dT%H:%M:%S.%f%z",
 }
 
+# djangosaml2 configuration
+LOGIN_URL = "/saml2/login/"
+SAML_SESSION_COOKIE_NAME = "saml_session"
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SAML_DJANGO_USER_MAIN_ATTRIBUTE = "email"
+SAML_DJANGO_USER_MAIN_ATTRIBUTE_LOOKUP = "__iexact"
+BASEDIR = os.path.dirname(os.path.abspath(__file__))
+
+SAML_CONFIG = {
+    # full path to the xmlsec1 binary programm
+    "xmlsec_binary": "/usr/bin/xmlsec1",
+    # your entity id, usually your subdomain plus the url to the metadata view
+    "entityid": "http://localhost:8000/saml2/metadata/",
+    # directory with attribute mapping
+    # "attribute_map_dir": path.join(BASEDIR, "attribute-maps"),
+    # Permits to have attributes not configured in attribute-mappings
+    # otherwise...without OID will be rejected
+    "allow_unknown_attributes": True,
+    # this block states what services we provide
+    "service": {
+        # we are just a lonely SP
+        "sp": {
+            "name": "Federated Django sample SP",
+            "name_id_format": saml2.saml.NAMEID_FORMAT_TRANSIENT,
+            # For Okta add signed logout requests. Enable this:
+            # "logout_requests_signed": True,
+            # "endpoints": {
+            #     # url and binding to the assetion consumer service view
+            #     # do not change the binding or service name
+            #     "assertion_consumer_service": [
+            #         ("http://localhost:8000/saml2/acs/", saml2.BINDING_HTTP_POST),
+            #     ],
+            #     # url and binding to the single logout service view
+            #     # do not change the binding or service name
+            #     "single_logout_service": [
+            #         # Disable next two lines for HTTP_REDIRECT for IDP's that only support HTTP_POST. Ex. Okta:
+            #         ("http://localhost:8000/saml2/ls/", saml2.BINDING_HTTP_REDIRECT),
+            #         ("http://localhost:8000/saml2/ls/post", saml2.BINDING_HTTP_POST),
+            #     ],
+            # },
+            "signing_algorithm": saml2.xmldsig.SIG_RSA_SHA256,
+            "digest_algorithm": saml2.xmldsig.DIGEST_SHA256,
+            # Mandates that the identity provider MUST authenticate the
+            # presenter directly rather than rely on a previous security context.
+            "force_authn": False,
+            # Enable AllowCreate in NameIDPolicy.
+            "name_id_format_allow_create": False,
+            # attributes that this project need to identify a user
+            "required_attributes": ["givenName", "sn", "mail"],
+            # attributes that may be useful to have but not required
+            "optional_attributes": ["eduPersonAffiliation"],
+            "want_response_signed": False,
+            "authn_requests_signed": False,
+            "logout_requests_signed": False,
+            # Indicates that Authentication Responses to this SP must
+            # be signed. If set to True, the SP will not consume
+            # any SAML Responses that are not signed.
+            "want_assertions_signed": False,
+            "only_use_keys_in_metadata": False,
+            # When set to true, the SP will consume unsolicited SAML
+            # Responses, i.e. SAML Responses for which it has not sent
+            # a respective SAML Authentication Request.
+            "allow_unsolicited": True,
+            # in this section the list of IdPs we talk to are defined
+            # This is not mandatory! All the IdP available in the metadata will be considered instead.
+            # "idp": {
+            #     # we do not need a WAYF service since there is
+            #     # only an IdP defined here. This IdP should be
+            #     # present in our metadata
+            #     # the keys of this dictionary are entity ids
+            #     "https://localhost/simplesaml/saml2/idp/metadata.php": {
+            #         "single_sign_on_service": {
+            #             saml2.BINDING_HTTP_REDIRECT: "https://dev-8nlcwu77kk3usmkb.us.auth0.com/samlp/B6mHaY3TeU3u8slBkLXj6GZnbV2xgSpc",
+            #         },
+            #         "single_logout_service": {
+            #             saml2.BINDING_HTTP_REDIRECT: "https://localhost/simplesaml/saml2/idp/SingleLogoutService.php",
+            #         },
+            #     },
+            # },
+        },
+    },
+    # where the remote metadata is stored, local, remote or mdq server.
+    # One metadatastore or many ...
+    "metadata": {
+        # "local": [os.path.join(BASEDIR, "cert.pem")],
+        "remote": [
+            {
+                "url": "https://dev-8nlcwu77kk3usmkb.us.auth0.com/samlp/metadata/B6mHaY3TeU3u8slBkLXj6GZnbV2xgSpc"
+            },
+        ],
+        # "mdq": [
+        #     {
+        #         "url": "https://dev-8nlcwu77kk3usmkb.us.auth0.com/samlp/metadata/B6mHaY3TeU3u8slBkLXj6GZnbV2xgSpc",
+        #         "cert": "cert.pem",
+        #     }
+        # ],
+    },
+    # set to 1 to output debugging information
+    "debug": 1,
+    # Signing
+    "key_file": os.path.join(BASEDIR, "private.key"),  # private part
+    "cert_file": os.path.join(BASEDIR, "public.cert"),  # public part
+    # Encryption
+    "encryption_keypairs": [
+        {
+            "key_file": os.path.join(BASEDIR, "private.key"),  # private part
+            "cert_file": os.path.join(BASEDIR, "public.cert"),  # public part
+        }
+    ],
+    # own metadata settings
+    "contact_person": [
+        {
+            "given_name": "Lorenzo",
+            "sur_name": "Gil",
+            "company": "Yaco Sistemas",
+            "email_address": "lorenzo.gil.sanchez@gmail.com",
+            "contact_type": "technical",
+        },
+    ],
+    # you can set multilanguage information here
+    "organization": {
+        "name": [("Yaco Sistemas", "es"), ("Yaco Systems", "en")],
+        "display_name": [("Yaco", "es"), ("Yaco", "en")],
+        "url": [("http://www.yaco.es", "es"), ("http://www.yaco.com", "en")],
+    },
+}
+
+
 # Time
 USE_TZ = True
 TIME_ZONE = "UTC"
@@ -267,7 +401,7 @@ TEST_PROCESS_PROFILE = False
 debug_file_path = os.environ.get("RESOLWE_LOG_FILE", os.devnull)
 
 github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
-CONSOLE_LEVEL = "WARNING"
+CONSOLE_LEVEL = "DEBUG"
 default_logger_handlers = ["file"]
 
 if github_actions:
@@ -310,6 +444,10 @@ LOGGING = {
         },
         "auditlog": {
             "handlers": ["auditlog"],
+            "level": "INFO",
+        },
+        "djangosaml2": {
+            "handlers": ["console"],
             "level": "INFO",
         },
     },
