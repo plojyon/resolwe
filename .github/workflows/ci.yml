@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - arc-runners # TODO: remove
     tags:
       - "[0-9]+.[0-9]+.[0-9]+*"
 
@@ -13,23 +14,42 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: arc-runner
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        tox-env: [py311, py310, linters, packaging, migrations]
         include:
-          - tox-env: py311
-            python-version: "3.11"
-          - tox-env: py310
-            python-version: "3.10"
-          - tox-env: linters
-            python-version: "3.11"
-          - tox-env: packaging
-            python-version: "3.11"
-          - tox-env: migrations
-            python-version: "3.11"
+          - python: "3.10"
+            toxenv: "py310"
+            codecov: false
+          - python: "3.11"
+            toxenv: "py311"
+            codecov: true
+          - python: "3.11"
+            toxenv: "linters"
+            codecov: false
+          - python: "3.11"
+            toxenv: "packaging"
+            codecov: false
+          - python: "3.11"
+            toxenv: "migrations"
+            codecov: false
+    container:
+      image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
+      env:
+        # DOCKER_HOST: unix:///run/docker/docker.sock
+        RESOLWE_REDIS_PORT: 6379
+        RESOLWE_POSTGRESQL_HOST: localhost
+        RESOLWE_POSTGRESQL_NAME: resolwe
+        RESOLWE_POSTGRESQL_USER: resolwe
+        RESOLWE_POSTGRESQL_PASS: resolwe
+        RESOLWE_POSTGRESQL_PORT: 5432
+      # volumes:
+      #   - /run/docker:/var/run/docker
+      credentials:
+        username: AWS
+        password: ${{ secrets.AWS_ECR_PASSWORD }}
 
     services:
       postgres: 
@@ -40,7 +60,7 @@ jobs:
           POSTGRES_PASSWORD: resolwe
         ports: 
           - 5432/tcp
-      
+
       redis:
         image: redis:alpine
         ports: 
@@ -48,53 +68,38 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox~=4.4.11
+
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
         run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
+
       - name: Run Tests
         run: >
           RESOLWE_COMMUNICATOR_IMAGE=resolwe/com:testing
-          tox -e ${{ matrix.tox-env }}
+          python3.12 -m tox -e ${{ matrix.toxenv }}
           --skip-missing-interpreters false
           --recreate
-        env:
-          RESOLWE_REDIS_PORT: ${{ job.services.redis.ports[6379] }}
-          RESOLWE_POSTGRESQL_HOST: localhost
-          RESOLWE_POSTGRESQL_NAME: resolwe
-          RESOLWE_POSTGRESQL_USER: resolwe
-          RESOLWE_POSTGRESQL_PASS: resolwe
-          RESOLWE_POSTGRESQL_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Upload coverage to Codecov
-        if: matrix.tox-env == 'py310' || matrix.tox-env == 'py311'
+        if: matrix.codecov
         uses: codecov/codecov-action@v4
         with:
           file: .coverage
-      
+
   build:
     runs-on: ubuntu-22.04
-
     needs: test
-    
-    if: "startsWith(github.ref, 'refs/tags')"
+    if: startsWith(github.ref, 'refs/tags')
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+
       - name: Install build
         run: python -m pip install --user build
+
       - name: Build a binary wheel and a source tarball
         run: python -m build --sdist --wheel --outdir dist/ .
+
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
