@@ -14,6 +14,9 @@ on:
 
 jobs:
   test:
+    env:
+      TOX_COMMAND: "RESOLWE_COMMUNICATOR_IMAGE=resolwe/com:testing python3.12 -m tox --skip-missing-interpreters false"
+
     runs-on: arc-runner
     timeout-minutes: 30
     strategy:
@@ -22,19 +25,9 @@ jobs:
         include:
           - python: "3.10"
             toxenv: "py310"
-            codecov: false
           - python: "3.11"
             toxenv: "py311"
-            codecov: true
-          - python: "3.11"
-            toxenv: "linters"
-            codecov: false
-          - python: "3.11"
-            toxenv: "packaging"
-            codecov: false
-          - python: "3.11"
-            toxenv: "migrations"
-            codecov: false
+
     container:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
       env:
@@ -73,18 +66,23 @@ jobs:
         working-directory: ./resolwe/flow/docker_images
         run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
-      - name: Run Tests
-        run: >
-          RESOLWE_COMMUNICATOR_IMAGE=resolwe/com:testing
-          python3.12 -m tox -e ${{ matrix.toxenv }}
-          --skip-missing-interpreters false
-          --recreate
+      - name: Linters
+        run: |
+          ${{ env.TOX_COMMAND }} -e linters
 
-      - name: Upload coverage to Codecov
-        if: matrix.codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: .coverage
+      - name: Packaging
+        run: |
+          ${{ env.TOX_COMMAND }} -e packaging
+
+      - name: Migrations
+        run: |
+          ${{ env.TOX_COMMAND }} -e migrations
+
+      - name: Unit tests
+        run: |
+          ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
+
+
 
   build:
     runs-on: ubuntu-22.04
@@ -104,3 +102,9 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.pypi_password }}
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: .coverage
+  
