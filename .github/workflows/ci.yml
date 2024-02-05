@@ -38,15 +38,15 @@ jobs:
     container:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
       env:
-        # DOCKER_HOST: unix:///run/docker/docker.sock
+        DOCKER_HOST: unix:///run/docker/docker.sock
         RESOLWE_REDIS_PORT: 6379
         RESOLWE_POSTGRESQL_HOST: localhost
         RESOLWE_POSTGRESQL_NAME: resolwe
         RESOLWE_POSTGRESQL_USER: resolwe
         RESOLWE_POSTGRESQL_PASS: resolwe
         RESOLWE_POSTGRESQL_PORT: 5432
-      # volumes:
-      #   - /run/docker:/var/run/docker
+      volumes:
+        - /run/docker:/var/run/docker
       credentials:
         username: AWS
         password: ${{ secrets.AWS_ECR_PASSWORD }}
