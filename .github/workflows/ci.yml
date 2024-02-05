@@ -40,7 +40,7 @@ jobs:
       env:
         DOCKER_HOST: unix:///run/docker/docker.sock
         RESOLWE_REDIS_PORT: 6379
-        RESOLWE_POSTGRESQL_HOST: localhost
+        RESOLWE_POSTGRESQL_HOST: postgres
         RESOLWE_POSTGRESQL_NAME: resolwe
         RESOLWE_POSTGRESQL_USER: resolwe
         RESOLWE_POSTGRESQL_PASS: resolwe
