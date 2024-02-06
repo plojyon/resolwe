@@ -28,6 +28,6 @@
     language: bash
     program: |
       mkdir data
-      tar xzf {{ src.file_temp }} --directory data --no-same-owner
+      tar xzf {{ src.file_temp }} --directory data
       re-checkrc "Compressed directory is not in tar.gz format"
       re-save-dir dir data
