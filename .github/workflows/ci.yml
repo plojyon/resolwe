@@ -74,12 +74,12 @@ jobs:
         working-directory: ./resolwe/flow/docker_images
         run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
-      - name: Get stuck
-        run: |
-          touch lock
-          while [ -f lock ]; do
-            sleep 10
-          done
+      # - name: Get stuck
+      #   run: |
+      #     touch lock
+      #     while [ -f lock ]; do
+      #       sleep 10
+      #     done
 
       - name: Linters
         run: |
