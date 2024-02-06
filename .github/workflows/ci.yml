@@ -18,7 +18,7 @@ jobs:
       TOX_COMMAND: "RESOLWE_COMMUNICATOR_IMAGE=resolwe/com:testing python3.12 -m tox --skip-missing-interpreters false"
 
     runs-on: arc-runner
-    timeout-minutes: 30
+    # timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -63,18 +63,19 @@ jobs:
           - 6379/tcp
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
         run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
-      # - name: Get stuck
-      #   run: |
-      #     touch lock
-      #     while [ -f lock ]; do
-      #       sleep 10
-      #     done
+      - name: Get stuck
+        run: |
+          touch lock
+          while [ -f lock ]; do
+            sleep 10
+          done
 
       - name: Linters
         run: |
