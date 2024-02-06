@@ -67,6 +67,10 @@ jobs:
           - 6379/tcp
 
     steps:
+      - name: Prepare to checkout
+        run: |
+          sudo chown -R $USER:$USER ${{ github.repository }}
+
       - name: Checkout
         uses: actions/checkout@v4
 
