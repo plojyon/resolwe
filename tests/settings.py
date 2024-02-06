@@ -98,7 +98,7 @@ DATABASES = {
 
 # The Redis database used by Django Channels.
 REDIS_CONNECTION = {
-    "host": "localhost",
+    "host": "redis",
     "port": int(os.environ.get("RESOLWE_REDIS_PORT", 56379)),
     "db": int(os.environ.get("RESOLWE_REDIS_DATABASE", 1)),
     "protocol": (os.environ.get("RESOLWE_REDIS_PROTOCOL", "redis")),
@@ -108,7 +108,7 @@ REDIS_CONNECTION_STRING = "{protocol}://{host}:{port}/{db}".format(**REDIS_CONNE
 LISTENER_CONNECTION = {
     # Keys in the hosts dictionary are workload connector names. Currently
     # supported are 'local', 'kubertenes', 'celery' and 'slurm'.
-    "hosts": {"local": "172.17.0.1"},
+    "hosts": {"local": "127.0.0.1"},
     "port": int(os.environ.get("RESOLWE_LISTENER_SERVICE_PORT", 53893)),
     "min_port": 50000,
     "max_port": 50050,
@@ -121,7 +121,7 @@ LISTENER_CONNECTION = {
 
 # The IP address where listener is available from the communication container.
 # The setting is a dictionary where key is the name of the workload connector.
-COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "127.0.0.1"}
+COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "172.17.0.1"}
 
 #: Add affinity to the Kubernetes jobs. Example:
 #: {"scheduling_class":
