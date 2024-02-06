@@ -41,8 +41,8 @@ jobs:
       volumes:
         - /run/docker:/var/run/docker
       ports:
-        - 50000-50050/tcp
-        - 53893/tcp
+        # Open listener ports to the docker host
+        - 50000-50050:50000-50050
       credentials:
         username: AWS
         password: ${{ secrets.AWS_ECR_PASSWORD }}
@@ -69,12 +69,12 @@ jobs:
         working-directory: ./resolwe/flow/docker_images
         run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
-      - name: Get stuck
-        run: |
-          touch lock
-          while [ -f lock ]; do
-            sleep 10
-          done
+      # - name: Get stuck
+      #   run: |
+      #     touch lock
+      #     while [ -f lock ]; do
+      #       sleep 10
+      #     done
 
       - name: Linters
         run: |

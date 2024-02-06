@@ -121,7 +121,7 @@ LISTENER_CONNECTION = {
 
 # The IP address where listener is available from the communication container.
 # The setting is a dictionary where key is the name of the workload connector.
-COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "127.0.0.1"}
+COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "172.17.0.1"}
 
 #: Add affinity to the Kubernetes jobs. Example:
 #: {"scheduling_class":
