@@ -108,7 +108,7 @@ REDIS_CONNECTION_STRING = "{protocol}://{host}:{port}/{db}".format(**REDIS_CONNE
 LISTENER_CONNECTION = {
     # Keys in the hosts dictionary are workload connector names. Currently
     # supported are 'local', 'kubertenes', 'celery' and 'slurm'.
-    "hosts": {"local": "172.18.0.1"},
+    "hosts": {"local": "172.18.0.2"},
     "port": int(os.environ.get("RESOLWE_LISTENER_SERVICE_PORT", 53893)),
     "min_port": 50000,
     "max_port": 50050,
