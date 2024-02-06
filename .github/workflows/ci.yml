@@ -40,6 +40,9 @@ jobs:
         RESOLWE_POSTGRESQL_PORT: 5432
       volumes:
         - /run/docker:/var/run/docker
+      ports:
+        - 50000-50050/tcp
+        - 53893/tcp
       credentials:
         username: AWS
         password: ${{ secrets.AWS_ECR_PASSWORD }}
