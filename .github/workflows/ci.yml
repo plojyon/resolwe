@@ -40,8 +40,10 @@ jobs:
         RESOLWE_POSTGRESQL_PORT: 5432
       volumes:
         - /run/docker:/var/run/docker
+        # Process executors try to mount some temporary files, so the /tmp must be shared on the host.
+        - /tmp:/tmp
       ports:
-        # Open listener ports to the docker host
+        # Open listener ports to the docker host to be accessible to process containers.
         - 50000-50050:50000-50050
       credentials:
         username: AWS
@@ -70,12 +72,12 @@ jobs:
         working-directory: ./resolwe/flow/docker_images
         run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
-      - name: Get stuck
-        run: |
-          touch lock
-          while [ -f lock ]; do
-            sleep 10
-          done
+      # - name: Get stuck
+      #   run: |
+      #     touch lock
+      #     while [ -f lock ]; do
+      #       sleep 10
+      #     done
 
       - name: Linters
         run: |
