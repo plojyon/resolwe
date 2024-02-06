@@ -108,7 +108,7 @@ REDIS_CONNECTION_STRING = "{protocol}://{host}:{port}/{db}".format(**REDIS_CONNE
 LISTENER_CONNECTION = {
     # Keys in the hosts dictionary are workload connector names. Currently
     # supported are 'local', 'kubertenes', 'celery' and 'slurm'.
-    "hosts": {"local": "172.18.0.2"},
+    "hosts": {"local": "0.0.0.0"},
     "port": int(os.environ.get("RESOLWE_LISTENER_SERVICE_PORT", 53893)),
     "min_port": 50000,
     "max_port": 50050,
@@ -121,7 +121,7 @@ LISTENER_CONNECTION = {
 
 # The IP address where listener is available from the communication container.
 # The setting is a dictionary where key is the name of the workload connector.
-COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "172.18.0.2"}
+COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "127.0.0.1"}
 
 #: Add affinity to the Kubernetes jobs. Example:
 #: {"scheduling_class":
