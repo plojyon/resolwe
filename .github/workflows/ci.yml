@@ -40,10 +40,12 @@ jobs:
         RESOLWE_POSTGRESQL_PORT: 5432
       volumes:
         - /run/docker:/var/run/docker
-        # Process executors try to mount some temporary files, so the /tmp must be shared on the host.
+        # Process executors try to mount certain files, so the directories must be shared on the host.
         - /tmp:/tmp
+        - /usr/local/bin/resolwe:/usr/local/bin/resolwe
+        - /__w/resolwe/resolwe:/__w/resolwe/resolwe
       ports:
-        # Open listener ports to the docker host to be accessible to process containers.
+        # Listener ports must open to the docker host to be accessible to process containers.
         - 50000-50050:50000-50050
       credentials:
         username: AWS
