@@ -43,7 +43,7 @@ jobs:
         # Process executors try to mount certain files, so the directories must be shared on the host.
         - /tmp:/tmp
         - /usr/local/bin/resolwe:/usr/local/bin/resolwe
-        - /__w:/__w
+        - /__w/resolwe/resolwe:/__w/resolwe/resolwe
       ports:
         # Listener ports must open to the docker host to be accessible to process containers.
         - 50000-50050:50000-50050
@@ -67,11 +67,9 @@ jobs:
           - 6379/tcp
 
     steps:
-      - name: Get stuck
+      - name: Own the working directory
         run: |
-          while true; do
-            sleep 10
-          done
+          sudo chown -R $USER:$USER .
 
       - name: Checkout
         uses: actions/checkout@v4
