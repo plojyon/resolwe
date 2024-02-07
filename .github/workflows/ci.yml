@@ -34,7 +34,6 @@ jobs:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
       env:
         DOCKER_HOST: ${{ env.DOCKER_HOST }}
-        GITHUB_WORKSPACE: /home/runner/_work/resolwe/resolwe
         # RESOLWE_DOCKER_COMMAND: "sudo DOCKER_HOST=${{ env.DOCKER_HOST }} docker"
         RESOLWE_DOCKER_COMMAND: docker
         RESOLWE_REDIS_PORT: 6379
@@ -71,12 +70,11 @@ jobs:
           - 6379/tcp
 
     steps:
-      # Permissions of /_w/resolwe/resolwe are changed because it was mounted by the host docker engine, running as root.
+      # Directory /home/runner/_work is owned by root because it was created when
+      # mounting by the host docker engine, which is running as root.
       - name: Own the working directory
         run: |
-          pwd
-          cd /home/runner/_work
-          sudo chown -R `whoami`: .
+          sudo chown `whoami`: /home/runner/_work
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,7 +85,6 @@ jobs:
 
       - name: Get stuck
         run: |
-          pwd
           touch lock
           while [ -f lock ]; do
             sleep 10
@@ -107,6 +104,9 @@ jobs:
 
       - name: Unit tests
         run: |
+          # This is the same directory as before, but the name must match
+          # the one on the host, so new docker containers can mount files normally.
+          cd /home/runner/_work/resolwe/resolwe
           ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
 
 
