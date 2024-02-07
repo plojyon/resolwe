@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Own the working directory
         run: |
-          sudo chown -R $USER:$USER .
+          sudo chown -R `whoami`:`whoami` .
 
       - name: Checkout
         uses: actions/checkout@v4
