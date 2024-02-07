@@ -67,6 +67,13 @@ jobs:
           - 6379/tcp
 
     steps:
+      - name: Get stuck
+        run: |
+          touch lock
+          while [ -f lock ]; do
+            sleep 10
+          done
+
       - name: Checkout
         uses: actions/checkout@v4
 
