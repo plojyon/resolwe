@@ -77,7 +77,7 @@ jobs:
 
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
-        run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
+        run: sudo docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
       - name: Get stuck
         run: |
