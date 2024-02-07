@@ -17,6 +17,7 @@ jobs:
     env:
       # TOX_COMMAND: "RESOLWE_COMMUNICATOR_IMAGE=resolwe/com:testing python3.12 -m tox --skip-missing-interpreters false"
       TOX_COMMAND: "RESOLWE_COMMUNICATOR_IMAGE=resolwe/com:testing python3.11 -m tox --skip-missing-interpreters false"
+      DOCKER_HOST: unix:///run/docker/docker.sock
 
     runs-on: arc-runner
     # timeout-minutes: 30
@@ -24,15 +25,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - python: "3.10"
-          #   toxenv: "py310"
+          - python: "3.10"
+            toxenv: "py310"
           - python: "3.11"
             toxenv: "py311"
 
     container:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
       env:
-        DOCKER_HOST: unix:///run/docker/docker.sock
+        DOCKER_HOST: ${{ env.DOCKER_HOST }}
+        RESOLWE_DOCKER_COMMAND: "sudo DOCKER_HOST=${{ env.DOCKER_HOST }} docker"
         RESOLWE_REDIS_PORT: 6379
         RESOLWE_POSTGRESQL_HOST: postgres
         RESOLWE_POSTGRESQL_NAME: resolwe
@@ -78,7 +80,7 @@ jobs:
 
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
-        run: sudo DOCKER_HOST=$DOCKER_HOST docker build -f Dockerfile.communication -t resolwe/com:testing ../../
+        run: $RESOLWE_DOCKER_COMMAND build -f Dockerfile.communication -t resolwe/com:testing ../../
 
       - name: Get stuck
         run: |
