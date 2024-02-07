@@ -69,8 +69,7 @@ jobs:
     steps:
       - name: Get stuck
         run: |
-          touch lock
-          while [ -f lock ]; do
+          while true; do
             sleep 10
           done
 
