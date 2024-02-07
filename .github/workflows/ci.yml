@@ -87,6 +87,7 @@ jobs:
 
       - name: Get stuck
         run: |
+          pwd
           touch lock
           while [ -f lock ]; do
             sleep 10
