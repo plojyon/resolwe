@@ -69,14 +69,14 @@ jobs:
     steps:
       - name: Own the working directory
         run: |
-          sudo chown -R `whoami`:`whoami` .
+          sudo chown -R `whoami`: .
 
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
-        run: docker build -f Dockerfile.communication -t resolwe/com:testing ../../
+        run: sudo docker build -f Dockerfile.communication -t resolwe/com:testing ../../
 
       - name: Get stuck
         run: |
