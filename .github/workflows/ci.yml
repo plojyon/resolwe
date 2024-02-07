@@ -43,7 +43,7 @@ jobs:
         # Process executors try to mount certain files, so the directories must be shared on the host.
         - /tmp:/tmp
         - /usr/local/bin/resolwe:/usr/local/bin/resolwe
-        - /__w/resolwe/resolwe:/__w/resolwe/resolwe
+        # - /__w/resolwe/resolwe:/__w/resolwe/resolwe
       ports:
         # Listener ports must open to the docker host to be accessible to process containers.
         - 50000-50050:50000-50050
