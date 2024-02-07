@@ -34,6 +34,7 @@ jobs:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
       env:
         DOCKER_HOST: ${{ env.DOCKER_HOST }}
+        GITHUB_WORKSPACE: /home/runner/_work/resolwe/resolwe
         # RESOLWE_DOCKER_COMMAND: "sudo DOCKER_HOST=${{ env.DOCKER_HOST }} docker"
         RESOLWE_DOCKER_COMMAND: docker
         RESOLWE_REDIS_PORT: 6379
@@ -46,8 +47,7 @@ jobs:
         - /run/docker:/var/run/docker
         # Process executors try to mount certain files, so the directories must be shared on the host.
         - /tmp:/tmp
-        - /usr/local/bin/resolwe:/usr/local/bin/resolwe
-        - /__w/resolwe/resolwe:/__w/resolwe/resolwe
+        - /home/runner/_work:/home/runner/_work
       ports:
         # Listener ports must open to the docker host to be accessible to process containers.
         - 50000-50050:50000-50050
@@ -74,6 +74,8 @@ jobs:
       # Permissions of /_w/resolwe/resolwe are changed because it was mounted by the host docker engine, running as root.
       - name: Own the working directory
         run: |
+          pwd
+          cd /home/runner/_work
           sudo chown -R `whoami`: .
 
       - name: Checkout
