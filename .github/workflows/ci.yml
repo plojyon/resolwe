@@ -70,13 +70,6 @@ jobs:
           - 6379/tcp
 
     steps:
-      # TODO: potentially unnecessary now that this mirrors /__w?
-      # Directory /home/runner/_work is owned by root because it was created when
-      # mounting by the host docker engine, which is running as root.
-      # - name: Own the working directory
-      #   run: |
-      #     sudo chown `whoami`: /home/runner/_work
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -84,12 +77,12 @@ jobs:
         working-directory: ./resolwe/flow/docker_images
         run: $RESOLWE_DOCKER_COMMAND build -f Dockerfile.communication -t resolwe/com:testing ../../
 
-      # - name: Get stuck
-      #   run: |
-      #     touch lock
-      #     while [ -f lock ]; do
-      #       sleep 10
-      #     done
+      - name: Get stuck
+        run: |
+          touch lock
+          while [ -f lock ]; do
+            sleep 10
+          done
 
       - name: Linters
         run: |
