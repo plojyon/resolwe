@@ -119,7 +119,6 @@ re-save subtype {{ 'data:test:inputobject:' | subtype('data:') }}
 re-save list_subtype {{ ['data:test:inputobject:'] | subtype('data:') }}
 re-save yesno {{ true | yesno('yes', 'no') }}
 re-save datalookup {{ 'input-data-object' | data_by_slug }}
-re-save file_url {{ input_data.test_file | get_url }}
 re-save relative_path {{ input_data.test_file | relative_path }}
 re-save relative_path2 {{ input_data.test_file.file | relative_path }}
 re-save unsafe {{ spacy }}

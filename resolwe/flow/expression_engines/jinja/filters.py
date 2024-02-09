@@ -102,15 +102,6 @@ def _get_hydrated_path(field):
     return hydrated_path
 
 
-def get_url(field):
-    """Return file's url based on base url set in settings."""
-    hydrated_path = _get_hydrated_path(field)
-    base_url = getattr(settings, "RESOLWE_HOST_URL", "localhost")
-    return "{}/data/{}/{}".format(
-        base_url, hydrated_path.data_id, hydrated_path.file_name
-    )
-
-
 def relative_path(field):
     """Return file's relative path."""
     hydrated_path = _get_hydrated_path(field)
@@ -160,7 +151,6 @@ filters = {
     "subtype": subtype,
     "yesno": yesno,
     "data_by_slug": data_by_slug,
-    "get_url": get_url,
     "relative_path": relative_path,
     "descriptor": descriptor,
     "all": all_,

@@ -23,7 +23,6 @@ from resolwe.test.utils import (
     with_custom_executor,
     with_docker_executor,
     with_null_executor,
-    with_resolwe_host,
 )
 
 __all__ = (
@@ -38,7 +37,6 @@ __all__ = (
     "with_custom_executor",
     "with_docker_executor",
     "with_null_executor",
-    "with_resolwe_host",
     "tag_process",
     "has_process_tag",
     "is_testing",

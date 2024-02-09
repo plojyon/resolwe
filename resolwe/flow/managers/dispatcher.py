@@ -189,12 +189,8 @@ class Manager:
 
     def _include_environment_variables(self, program: str, executor_vars: dict) -> str:
         """Include environment variables in program."""
-        env_vars = {
-            "RESOLWE_HOST_URL": getattr(settings, "RESOLWE_HOST_URL", "localhost"),
-        }
-        set_env = getattr(settings, "FLOW_EXECUTOR", {}).get("SET_ENV", {})
+        env_vars = getattr(settings, "FLOW_EXECUTOR", {}).get("SET_ENV", {})
         env_vars.update(executor_vars)
-        env_vars.update(set_env)
 
         export_commands = [
             "export {}={}".format(key, shlex.quote(value))

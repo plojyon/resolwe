@@ -275,13 +275,9 @@ class BootstrapCommands(ListenerPlugin):
             # TODO: should executor be changed? Definitely for tests (from case to case).
             # Should I use file prepared by the Dispatcher (that takes care of that)?
             env_vars = self.get_executor().get_environment_variables()
-            settings_env_vars = {
-                "RESOLWE_HOST_URL": getattr(settings, "RESOLWE_HOST_URL", "localhost"),
-            }
             additional_env_vars = getattr(settings, "FLOW_EXECUTOR", {}).get(
                 "SET_ENV", {}
             )
-            env_vars.update(settings_env_vars)
             env_vars.update(additional_env_vars)
             export_commands = [
                 "export {}={}".format(key, shlex.quote(value))

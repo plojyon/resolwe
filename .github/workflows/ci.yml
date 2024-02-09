@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - arc-runners # TODO: remove
+      - arc-runners-no-resolwe-host
     tags:
       - "[0-9]+.[0-9]+.[0-9]+*"
 

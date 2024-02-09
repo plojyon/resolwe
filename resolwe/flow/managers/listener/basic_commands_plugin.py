@@ -363,16 +363,7 @@ class BasicCommands(ListenerPlugin):
                         "Error occured while processing data object '{}' (handle_update).",
                         data_id,
                     ),
-                    extra={
-                        "data_id": data_id,
-                        "api_url": "{}{}".format(
-                            getattr(settings, "RESOLWE_HOST_URL", ""),
-                            reverse(
-                                "resolwe-api:data-detail",
-                                kwargs={"pk": data_id},
-                            ),
-                        ),
-                    },
+                    extra={"data_id": data_id},
                 )
         return message.respond_ok(new_status)
 
