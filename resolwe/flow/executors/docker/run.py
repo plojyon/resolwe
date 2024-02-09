@@ -370,7 +370,7 @@ class FlowExecutor(LocalFlowExecutor):
         init_arguments = {
             "auto_remove": autoremove,
             "volumes": self._init_volumes(),
-            "command": ["/usr/local/bin/python3", "-m", "executors.init_container"],
+            "command": ["python3.11", "-m", "executors.init_container"],
             "image": communicator_image,
             "name": init_container_name,
             "detach": True,
