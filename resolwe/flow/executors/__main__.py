@@ -81,6 +81,7 @@ async def open_listener_connection(data_id, host, port, protocol) -> ZMQCommunic
 
 async def _run_executor():
     """Start the actual execution; instantiate the executor and run."""
+    print("_run_executor")
     parser = argparse.ArgumentParser(description="Run the specified executor.")
     parser.add_argument(
         "module", help="The module from which to instantiate the concrete executor."
@@ -105,7 +106,9 @@ async def _run_executor():
     asyncio.ensure_future(communicator.start_listening())
     configure_logging(communicator)
 
+    print("a")
     response = await communicator.bootstrap((args.data_id, "executor"))
+    print("b")
     validate_response(response)
     initialize_constants(args.data_id, response.message_data)
     connectors.recreate_connectors()
@@ -118,7 +121,9 @@ async def _run_executor():
         executor = getattr(module, class_name)(
             args.data_id, communicator, (args.host, args.port, args.protocol)
         )
+        print("c")
         await executor.run()
+        print("d")
     except:
         logger.exception("Unexpected exception while running executor %s.", module_name)
 
@@ -143,6 +148,7 @@ async def start():
 
 
 if __name__ == "__main__":
+    print("executors module called")
     # TODO: remove this condition when we stop supporting Python 3.6.
     if sys.version_info < (3, 7):
         loop = asyncio.get_event_loop()

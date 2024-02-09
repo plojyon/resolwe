@@ -130,6 +130,8 @@ class Processor:
 
         Use with caution: loading the entire data object is slow.
         """
+        print(Data.objects.all())
+        print([(d.id, d.pk) for d in Data.objects.all()])
         return Data.objects.get(pk=data_id)
 
     def worker(self, data_id: int) -> Worker:
@@ -204,6 +206,9 @@ class Processor:
         The status of Data object is changed to ``Data.STATUS_ERROR``.
         """
         logger.debug("Saving error to data object %s", data.id)
+        print(Data.objects.all())
+        print([(d.id, d.pk) for d in Data.objects.all()])
+
         if error not in data.process_error:
             data.process_error.append(error)
         data.status = Data.STATUS_ERROR
