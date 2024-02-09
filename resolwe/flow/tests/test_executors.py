@@ -696,7 +696,9 @@ class ManagerRunProcessTest(ProcessTestCase):
 
         process = subprocess.run(
             [
-                "python",
+                getattr(settings, "FLOW_EXECUTOR", {}).get(
+                    "PYTHON", "/usr/bin/env python"
+                ),
                 "-m",
                 "executors",
                 ".docker",
