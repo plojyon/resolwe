@@ -24,11 +24,7 @@ from resolwe.flow.models.annotations import (
     AnnotationValue,
 )
 from resolwe.permissions.models import Permission, get_anonymous_user
-from resolwe.test import (
-    ProcessTestCase,
-    tag_process,
-    with_docker_executor,
-)
+from resolwe.test import ProcessTestCase, tag_process, with_docker_executor
 
 PROCESSES_DIR = os.path.join(os.path.dirname(__file__), "processes")
 WORKFLOWS_DIR = os.path.join(os.path.dirname(__file__), "workflows")
