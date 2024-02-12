@@ -695,7 +695,11 @@ class ManagerRunProcessTest(ProcessTestCase):
         redis_cache.clear(Data, (data.pk,))
 
         # Prepare the processing directory.
-        Path("./test_processing/test__1/1").mkdir(parents=True, exist_ok=True)
+        processing_path = Path(
+            storage_settings.FLOW_VOLUMES["processing"]["config"]["path"]
+        )
+        processing_path /= Path(str(data.pk))
+        processing_path.mkdir(parents=True, exist_ok=True)
 
         process = subprocess.run(
             [
