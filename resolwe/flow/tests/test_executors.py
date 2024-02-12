@@ -694,6 +694,9 @@ class ManagerRunProcessTest(ProcessTestCase):
         data.save()
         redis_cache.clear(Data, (data.pk,))
 
+        # Prepare the processing directory.
+        Path("./test_processing/test__1/1").mkdir(parents=True, exist_ok=True)
+
         process = subprocess.run(
             [
                 getattr(settings, "FLOW_EXECUTOR", {}).get(
