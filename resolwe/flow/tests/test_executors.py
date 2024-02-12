@@ -680,42 +680,21 @@ class ManagerRunProcessTest(ProcessTestCase):
             "LISTENER_CONNECTION", {}
         )
         port = listener_settings.get("port", 53893)
-        hosts = getattr(
-            settings,
-            "COMMUNICATION_CONTAINER_LISTENER_CONNECTION",
-            {"local": "127.0.0.1"},
-        )
+        hosts = listener_settings.get("hosts", {"local": "127.0.0.1"})
         host = hosts.get("local", next(iter(hosts.values())))
-        host = "172.17.0.1"
-        # host = "0.0.0.0"
         protocol = settings.FLOW_EXECUTOR.get("LISTENER_CONNECTION", {}).get(
             "protocol", "tcp"
         )
 
         # Set the status or listener will imediatelly respond with error
         # status. Make sure to also clear Redis cache for the data object.
-        print("Checking for Data existence")
-        print([d.id for d in Data.objects.all()])
         data.worker.status = Worker.STATUS_PROCESSING
-        print([d.id for d in Data.objects.all()])
         data.worker.save()
-        print([d.id for d in Data.objects.all()])
         data.status = Data.STATUS_PROCESSING
-        print([d.id for d in Data.objects.all()])
         data.save()
-        print([d.id for d in Data.objects.all()])
         redis_cache.clear(Data, (data.pk,))
-        print([d.id for d in Data.objects.all()])
-        print("Done checking")
 
-        subprocess.Popen(
-            ["echo", "hello", "world"],
-            cwd=storage_settings.FLOW_VOLUMES["runtime"]["config"]["path"],
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.PIPE,
-            # timeout=30,
-        )
-        process = subprocess.Popen(
+        process = subprocess.run(
             [
                 getattr(settings, "FLOW_EXECUTOR", {}).get(
                     "PYTHON", "/usr/bin/env python"
@@ -729,11 +708,10 @@ class ManagerRunProcessTest(ProcessTestCase):
                 protocol,
             ],
             cwd=storage_settings.FLOW_VOLUMES["runtime"]["config"]["path"],
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.PIPE,
-            # timeout=30,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
         )
-        process.wait()
         self.assertEqual(process.returncode, 0, f"The stderr was: '{process.stderr}'.")
         data.refresh_from_db()
         self.assertEqual(data.output, {})
