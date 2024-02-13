@@ -87,7 +87,6 @@ jobs:
         run: |
           python3.11 -m pip install zmq
           if [ "${{ matrix.python }}" == "3.10" ]; then touch lock; fi
-          touch lock
           while [ -f lock ]; do
             sleep 10
           done
