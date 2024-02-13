@@ -50,7 +50,7 @@ jobs:
         RESOLWE_POSTGRESQL_PORT: 5432
       volumes:
         - /run/docker:/var/run/docker
-        # Process executors try to mount certain files, so the directories must be shared on the host.
+        # Process executors must mount certain volumes, so the directories must be shared on the host.
         - /tmp:/tmp
         - /home/runner/_work:/home/runner/_work
       ports:
@@ -94,8 +94,8 @@ jobs:
 
       - name: Tests
         run: |
-          # This is the same directory as before, but the name must match
-          # the one on the host, so new docker containers can mount files normally.
+          # This is the same directory as before, but the path must match
+          # the one on the host, so new docker containers can mount files in it.
           cd /home/runner/_work/resolwe/resolwe
           ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
 
