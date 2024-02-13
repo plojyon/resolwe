@@ -228,6 +228,7 @@ FLOW_EXECUTOR = {
     "NAME": "resolwe.flow.executors.docker",
     "LISTENER_CONNECTION": LISTENER_CONNECTION,
     "NETWORK": "bridge",
+    "PYTHON": "python3.11",
 }
 
 FLOW_DOCKER_AUTOREMOVE = False

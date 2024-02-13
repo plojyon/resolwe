@@ -79,6 +79,7 @@ jobs:
 
       - name: Get stuck
         run: |
+          python3.11 -m pip install zmq
           touch lock
           while [ -f lock ]; do
             sleep 10
