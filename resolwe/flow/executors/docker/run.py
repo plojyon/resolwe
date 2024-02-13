@@ -455,7 +455,8 @@ class FlowExecutor(LocalFlowExecutor):
         print("4")
         init_container_status = print(
             await loop.run_in_executor(
-                None, lambda: [print("INIT", x) for x in init_container.logs(stream=True)]
+                None,
+                lambda: [print("INIT", x) for x in init_container.logs(stream=True)],
             )
         )
         print("5")
