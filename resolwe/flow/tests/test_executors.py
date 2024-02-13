@@ -2,11 +2,13 @@
 import asyncio
 import logging
 import os
-import subprocess
+
+# import subprocess
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
+
+# from pathlib import Path
 from time import sleep, time
 from unittest import mock
 from unittest.mock import patch
@@ -26,7 +28,8 @@ from resolwe.flow.executors.startup_processing_container import (
 )
 from resolwe.flow.executors.zeromq_utils import ZMQCommunicator
 from resolwe.flow.managers.dispatcher import Manager
-from resolwe.flow.managers.listener.redis_cache import redis_cache
+
+# from resolwe.flow.managers.listener.redis_cache import redis_cache
 from resolwe.flow.models import Data, DataDependency, Process, Worker
 from resolwe.flow.models.annotations import (
     AnnotationField,
@@ -34,7 +37,8 @@ from resolwe.flow.models.annotations import (
     AnnotationType,
 )
 from resolwe.flow.models.fields import ResolweSlugField
-from resolwe.storage import settings as storage_settings
+
+# from resolwe.storage import settings as storage_settings
 from resolwe.test import (
     ProcessTestCase,
     TestCase,
