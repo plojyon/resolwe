@@ -62,7 +62,7 @@ jobs:
 
     services:
       postgres: 
-        image: postgres:14-alpine
+        image: public.ecr.aws/docker/library/postgres:14
         env:
           POSTGRES_USER: resolwe
           POSTGRES_DB: resolwe
@@ -71,7 +71,7 @@ jobs:
           - 5432/tcp
 
       redis:
-        image: redis:alpine
+        image: public.ecr.aws/docker/library/redis:7-alpine
         ports: 
           - 6379/tcp
 
