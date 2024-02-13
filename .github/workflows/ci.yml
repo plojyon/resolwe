@@ -29,6 +29,12 @@ jobs:
             toxenv: "py310"
           - python: "3.11"
             toxenv: "py311"
+          - python: "3.11"
+            toxenv: "linters"
+          - python: "3.11"
+            toxenv: "packaging"
+          - python: "3.11"
+            toxenv: "migrations"
 
     container:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
@@ -86,25 +92,12 @@ jobs:
             sleep 10
           done
 
-      - name: Linters
-        run: |
-          ${{ env.TOX_COMMAND }} -e linters
-
-      - name: Packaging
-        run: |
-          ${{ env.TOX_COMMAND }} -e packaging
-
-      - name: Migrations
-        run: |
-          ${{ env.TOX_COMMAND }} -e migrations
-
-      - name: Unit tests
+      - name: Tests
         run: |
           # This is the same directory as before, but the name must match
           # the one on the host, so new docker containers can mount files normally.
           cd /home/runner/_work/resolwe/resolwe
           ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
-
 
 
   build:
