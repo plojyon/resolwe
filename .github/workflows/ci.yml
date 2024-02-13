@@ -55,7 +55,7 @@ jobs:
         - /home/runner/_work:/home/runner/_work
       ports:
         # Listener ports must open to the docker host to be accessible to process containers.
-        - 50000-50500:50000-50500
+        - 50000-50500/tcp
       credentials:
         username: AWS
         password: ${{ secrets.AWS_ECR_PASSWORD }}
