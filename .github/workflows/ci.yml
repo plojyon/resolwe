@@ -85,8 +85,7 @@ jobs:
 
       - name: Get stuck
         run: |
-          python3.11 -m pip install zmq
-          if [ "${{ matrix.python }}" == "3.10" ]; then touch lock; fi
+          if [ "${{ matrix.python }}" = "3.10" ]; then touch lock; fi
           while [ -f lock ]; do
             sleep 10
           done
@@ -96,6 +95,7 @@ jobs:
           # This is the same directory as before, but the path must match
           # the one on the host, so new docker containers can mount files in it.
           cd /home/runner/_work/resolwe/resolwe
+          export PATH=`pwd`/.tox/${{ matrix.toxenv }}/bin:$PATH
           ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
 
 
