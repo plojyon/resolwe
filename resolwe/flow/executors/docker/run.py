@@ -455,7 +455,8 @@ class FlowExecutor(LocalFlowExecutor):
         print("4")
         init_container_status = print(
             await loop.run_in_executor(
-                None, lambda: [print(x) for x in init_container.logs(stream=True)]
+                None,
+                lambda: [print("INIT", x) for x in init_container.logs(stream=True)],
             )
         )
         print("5")
@@ -502,7 +503,9 @@ class FlowExecutor(LocalFlowExecutor):
             print(
                 await loop.run_in_executor(
                     None,
-                    lambda: [print(x) for x in processing_container.logs(stream=True)],
+                    lambda: [
+                        print("PROC", x) for x in processing_container.logs(stream=True)
+                    ],
                 )
             )
 
@@ -511,7 +514,8 @@ class FlowExecutor(LocalFlowExecutor):
                 await loop.run_in_executor(
                     None,
                     lambda: [
-                        print(x) for x in communication_container.logs(stream=True)
+                        print("COMM", x)
+                        for x in communication_container.logs(stream=True)
                     ],
                 )
             )
