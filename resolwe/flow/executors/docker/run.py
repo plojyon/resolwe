@@ -458,7 +458,6 @@ class FlowExecutor(LocalFlowExecutor):
                 None, lambda: [print(x) for x in init_container.logs(stream=True)]
             )
         )
-        init_container_status += 1
         print("5")
         # Return code is as follows:
         # - 0: no error occured, continue processing.
