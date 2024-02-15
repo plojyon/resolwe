@@ -110,8 +110,8 @@ LISTENER_CONNECTION = {
     # supported are 'local', 'kubertenes', 'celery' and 'slurm'.
     "hosts": {"local": "0.0.0.0"},
     "port": int(os.environ.get("RESOLWE_LISTENER_SERVICE_PORT", 53893)),
-    "min_port": 50000,
-    "max_port": 50500,
+    "min_port": 60000,
+    "max_port": 60500,
     "protocol": "tcp",
     # Define the max number of commands listener can process simultaneously.
     "max_concurrent_commands": config(
