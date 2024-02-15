@@ -463,7 +463,7 @@ class FlowExecutor(LocalFlowExecutor):
         # - 0: no error occured, continue processing.
         # - 1: error running init container, abort processing and log error.
         # - 2: data exists in the processing volume, abort processing.
-        init_rc = 0  # init_container_status["StatusCode"]
+        init_rc = init_container_status["StatusCode"]
         if init_rc != 0:
             logger.error("Init container returned %s instead of 0.", init_rc)
             # Do not set error on data objects where previous data exists.
