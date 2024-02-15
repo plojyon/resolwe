@@ -453,12 +453,11 @@ class FlowExecutor(LocalFlowExecutor):
             )
             raise
         print("4")
-        init_container_status = print(
-            await loop.run_in_executor(
-                None,
-                lambda: [print("INIT", x) for x in init_container.logs(stream=True)],
-            )
+        await loop.run_in_executor(
+            None,
+            lambda: [print("INIT", x) for x in init_container.logs(stream=True)],
         )
+        init_container_status = init_container.wait()
         print("5")
         # Return code is as follows:
         # - 0: no error occured, continue processing.
@@ -500,22 +499,17 @@ class FlowExecutor(LocalFlowExecutor):
         )
         with suppress(docker.errors.NotFound):
             print("10")
-            print(
-                await loop.run_in_executor(
-                    None,
-                    lambda: [
-                        print("PROC", x) for x in processing_container.logs(stream=True)
-                    ],
-                )
+            await loop.run_in_executor(
+                None,
+                lambda: [
+                    print("PROC", x) for x in processing_container.logs(stream=True)
+                ],
             )
 
             print("9")
-            print(
-                await loop.run_in_executor(
-                    None,
-                    lambda: [
-                        print("COMM", x)
-                        for x in communication_container.logs(stream=True)
-                    ],
-                )
+            await loop.run_in_executor(
+                None,
+                lambda: [
+                    print("COMM", x) for x in communication_container.logs(stream=True)
+                ],
             )
