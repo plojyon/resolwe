@@ -55,6 +55,7 @@ jobs:
         - /home/runner/_work:/home/runner/_work
       ports:
         # Listener ports must open to the docker host to be accessible to process containers.
+        # Do not open too many ports, as this can take a really long time.
         - 60000-60500:60000-60500
       credentials:
         username: AWS
