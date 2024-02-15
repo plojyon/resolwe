@@ -2,13 +2,11 @@
 import asyncio
 import logging
 import os
-
-# import subprocess
+import subprocess
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-
-# from pathlib import Path
+from pathlib import Path
 from time import sleep, time
 from unittest import mock
 from unittest.mock import patch
@@ -28,8 +26,7 @@ from resolwe.flow.executors.startup_processing_container import (
 )
 from resolwe.flow.executors.zeromq_utils import ZMQCommunicator
 from resolwe.flow.managers.dispatcher import Manager
-
-# from resolwe.flow.managers.listener.redis_cache import redis_cache
+from resolwe.flow.managers.listener.redis_cache import redis_cache
 from resolwe.flow.models import Data, DataDependency, Process, Worker
 from resolwe.flow.models.annotations import (
     AnnotationField,
@@ -37,8 +34,7 @@ from resolwe.flow.models.annotations import (
     AnnotationType,
 )
 from resolwe.flow.models.fields import ResolweSlugField
-
-# from resolwe.storage import settings as storage_settings
+from resolwe.storage import settings as storage_settings
 from resolwe.test import (
     ProcessTestCase,
     TestCase,
@@ -664,73 +660,64 @@ class ManagerRunProcessTest(ProcessTestCase):
         )
         self.run_process("test-scheduling-class-batch")
 
-    # @with_docker_executor
-    # @tag_process("test-save-number")
-    # def test_executor_fs_lock(self):
-    #     # First, run the process normaly. Do not autoremove container to check
-    #     # if name clash with init contaner is avoided.
-    #     with self.settings(FLOW_DOCKER_AUTOREMOVE=False):
-    #         data = self.run_process("test-save-number", {"number": 42})
-    #     # Make sure that process was successfully ran first time.
-    #     self.assertEqual(data.output["number"], 42)
-    #     data.output = {}
-    #     data.save()
+    @with_docker_executor
+    @tag_process("test-save-number")
+    def test_executor_fs_lock(self):
+        # First, run the process normaly. Do not autoremove container to check
+        # if name clash with init contaner is avoided.
+        with self.settings(FLOW_DOCKER_AUTOREMOVE=False):
+            data = self.run_process("test-save-number", {"number": 42})
+        # Make sure that process was successfully ran first time.
+        self.assertEqual(data.output["number"], 42)
+        data.output = {}
+        data.save()
 
-    #     file = Path(data.location.get_path(filename="temporary_file_do_not_purge.txt"))
-    #     self.assertFalse(file.exists())
-    #     file.touch()
+        file = Path(data.location.get_path(filename="temporary_file_do_not_purge.txt"))
+        self.assertFalse(file.exists())
+        file.touch()
 
-    #     listener_settings = getattr(settings, "FLOW_EXECUTOR", {}).get(
-    #         "LISTENER_CONNECTION", {}
-    #     )
-    #     port = listener_settings.get("port", 53893)
-    #     hosts = listener_settings.get("hosts", {"local": "127.0.0.1"})
-    #     host = hosts.get("local", next(iter(hosts.values())))
-    #     protocol = settings.FLOW_EXECUTOR.get("LISTENER_CONNECTION", {}).get(
-    #         "protocol", "tcp"
-    #     )
+        listener_settings = getattr(settings, "FLOW_EXECUTOR", {}).get(
+            "LISTENER_CONNECTION", {}
+        )
+        port = listener_settings.get("port", 53893)
+        hosts = listener_settings.get("hosts", {"local": "127.0.0.1"})
+        host = hosts.get("local", next(iter(hosts.values())))
+        protocol = settings.FLOW_EXECUTOR.get("LISTENER_CONNECTION", {}).get(
+            "protocol", "tcp"
+        )
 
-    #     # Set the status or listener will imediatelly respond with error
-    #     # status. Make sure to also clear Redis cache for the data object.
-    #     data.worker.status = Worker.STATUS_PROCESSING
-    #     data.worker.save()
-    #     data.status = Data.STATUS_PROCESSING
-    #     data.save()
-    #     redis_cache.clear(Data, (data.pk,))
+        # Set the status or listener will imediatelly respond with error
+        # status. Make sure to also clear Redis cache for the data object.
+        data.worker.status = Worker.STATUS_PROCESSING
+        data.worker.save()
+        data.status = Data.STATUS_PROCESSING
+        data.save()
+        redis_cache.clear(Data, (data.pk,))
 
-    #     # Prepare the processing directory.
-    #     processing_path = Path(
-    #         storage_settings.FLOW_VOLUMES["processing"]["config"]["path"]
-    #     )
-    #     processing_path /= Path(str(data.pk))
-    #     processing_path.mkdir(parents=True, exist_ok=True)
-
-    #     process = subprocess.run(
-    #         [
-    #             getattr(settings, "FLOW_EXECUTOR", {}).get(
-    #                 "PYTHON", "/usr/bin/env python"
-    #             ),
-    #             "-m",
-    #             "executors",
-    #             ".docker",
-    #             str(data.id),
-    #             host,
-    #             str(port),
-    #             protocol,
-    #         ],
-    #         cwd=storage_settings.FLOW_VOLUMES["runtime"]["config"]["path"],
-    #         stdout=subprocess.PIPE,
-    #         stderr=subprocess.PIPE,
-    #         timeout=30,
-    #     )
-    #     self.assertEqual(process.returncode, 0, f"The stderr was: '{process.stderr}'.")
-    #     data.refresh_from_db()
-    #     self.assertEqual(data.output, {})
-    #     self.assertEqual(data.status, Data.STATUS_PROCESSING)
-    #     self.assertEqual(data.process_error, [])
-    #     self.assertEqual(data.process_info, [])
-    #     # Check that temporary file was not deleted.
-    #     self.assertTrue(file.exists())
+        process = subprocess.run(
+            [
+                "python",
+                "-m",
+                "executors",
+                ".docker",
+                str(data.id),
+                host,
+                str(port),
+                protocol,
+            ],
+            cwd=storage_settings.FLOW_VOLUMES["runtime"]["config"]["path"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+        self.assertEqual(process.returncode, 0, f"The stderr was: '{process.stderr}'.")
+        data.refresh_from_db()
+        self.assertEqual(data.output, {})
+        self.assertEqual(data.status, Data.STATUS_PROCESSING)
+        self.assertEqual(data.process_error, [])
+        self.assertEqual(data.process_info, [])
+        # Check that temporary file was not deleted.
+        self.assertTrue(file.exists())
 
     @mock.patch(
         "resolwe.flow.executors.startup_processing_container.asyncio.open_unix_connection"

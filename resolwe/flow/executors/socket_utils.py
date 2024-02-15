@@ -350,8 +350,7 @@ class Message(Generic[MessageDataType]):
             # If message is response chech that type_data is of the correct type.
             if message_type is MessageType.RESPONSE:
                 ResponseStatus(message_dict["type_data"])
-        except (AssertionError, ValueError) as e:
-            print(e)
+        except (AssertionError, ValueError):
             return False
         else:
             return True
@@ -591,7 +590,6 @@ class BaseCommunicator:
                     self.logger.info("Socket closed by peer, stopping communication.")
                     received = None
                 if received is not None:
-                    print("recv", received)
                     assert isinstance(received, tuple)
                     assert len(received) == 2
                     assert isinstance(received[0], bytes)
@@ -787,7 +785,7 @@ class BaseCommunicator:
         command: Message[MessageDataType],
         peer_identity: PeerIdentity = b"",
         resend_timeout: Optional[int] = 60,
-        timeout: Optional[int] = 120,
+        timeout: Optional[int] = 1200,
     ) -> Response:
         """Send the command and return the response.
 
