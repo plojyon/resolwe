@@ -39,7 +39,6 @@ jobs:
       image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
       env:
         DOCKER_HOST: ${{ env.DOCKER_HOST }}
-        RESOLWE_DOCKER_COMMAND: docker
         RESOLWE_REDIS_PORT: 6379
         RESOLWE_POSTGRESQL_HOST: postgres
         RESOLWE_POSTGRESQL_NAME: resolwe
