@@ -69,12 +69,22 @@ jobs:
           POSTGRES_PASSWORD: resolwe
         ports: 
           - 5432/tcp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
       redis:
         image: public.ecr.aws/docker/library/redis:7-alpine
         ports: 
           - 6379/tcp
-
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+  
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,14 +101,14 @@ jobs:
             sleep 10
           done
 
-      - name: Tests
+      - name: Test
         run: |
           # This is the same directory as before, but the path must match
           # the one on the host, so new docker containers can mount files in it.
           cd /home/runner/_work/resolwe/resolwe
+          # Make sure `python` refers to the tox environment's Python
           export PATH=`pwd`/.tox/${{ matrix.toxenv }}/bin:$PATH
           ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
-
 
   build:
     runs-on: arc-runner
