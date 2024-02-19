@@ -121,7 +121,7 @@ LISTENER_CONNECTION = {
 
 # The IP address where listener is available from the communication container.
 # The setting is a dictionary where key is the name of the workload connector.
-COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "172.17.0.1"}
+COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "resolwe"}
 
 #: Add affinity to the Kubernetes jobs. Example:
 #: {"scheduling_class":
@@ -224,10 +224,12 @@ FLOW_PROCESSES_IGNORE_LIST = config(
     "FLOW_PROCESSES_IGNORE_LIST", default="null", cast=json.loads
 )
 
+FLOW_DOCKER_NETWORK = config("RESOLWE_DOCKER_NETWORK", default="bridge")
+
 FLOW_EXECUTOR = {
     "NAME": "resolwe.flow.executors.docker",
     "LISTENER_CONNECTION": LISTENER_CONNECTION,
-    "NETWORK": "bridge",
+    "NETWORK": FLOW_DOCKER_NETWORK,
 }
 
 FLOW_DOCKER_AUTOREMOVE = False
