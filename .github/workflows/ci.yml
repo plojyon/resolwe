@@ -13,7 +13,23 @@ on:
     - cron: "30 2 * * *"
 
 jobs:
+  ecr_login:
+    runs-on: ubuntu-latest
+    outputs:
+      ecr_password: ${{ steps.retrieve_password.outputs.ecr_password }}
+    steps:
+      - name: Set up AWS CLI
+        uses: chrislennon/action-aws-cli@1.1
+      - name: Retrieve ECR password and store it as a secret
+        id: retrieve_password
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: echo "::set-output name=ecr_password::$(aws ecr get-login-password)"
+
   test:
+    needs: ecr_login
     env:
       TOX_COMMAND: "python3.12 -m tox --skip-missing-interpreters false"
       DOCKER_HOST: unix:///run/docker/docker.sock
@@ -57,7 +73,7 @@ jobs:
         - 60000-60500:60000-60500
       credentials:
         username: AWS
-        password: ${{ secrets.AWS_ECR_PASSWORD }}
+        password: ${{ needs.ecr_login.outputs.ecr_password }}
 
     services:
       postgres: 
