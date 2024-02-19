@@ -90,7 +90,7 @@ jobs:
 
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
-        run: $RESOLWE_DOCKER_COMMAND build -f Dockerfile.communication -t $RESOLWE_COMMUNICATOR_IMAGE ../../
+        run: docker build -f Dockerfile.communication -t $RESOLWE_COMMUNICATOR_IMAGE ../../
 
       # TODO: remove
       - name: Get stuck
