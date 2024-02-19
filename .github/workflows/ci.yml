@@ -26,7 +26,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
-        run: echo "::set-output name=ecr_password::$(aws ecr get-login-password)"
+        run: echo "ecr_password=$(aws ecr get-login-password)" >> $GITHUB_OUTPUT
 
   test:
     needs: ecr_login
