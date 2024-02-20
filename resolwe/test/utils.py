@@ -14,7 +14,6 @@ import shutil
 import subprocess
 import unittest
 from contextlib import suppress
-from sys import platform
 
 import wrapt
 
@@ -248,6 +247,6 @@ def is_testing():
 
     This assumes that the Resolwe test runner is being used.
     """
-    from resolwe.test_helpers.test_runner import is_testing
+    from resolwe.test_helpers import is_testing
 
     return is_testing()
