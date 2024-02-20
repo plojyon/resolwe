@@ -113,7 +113,8 @@ class Processor:
     def contributor_id(self, data_id: int) -> int:
         """Get the id of the user that created the given data object.
 
-        This function is cached since contributor is immutable.
+        This function is cached since contributor is immutable, except in tests,
+        where ids may be reused.
         """
         return self.contributor(data_id).id
 
@@ -121,7 +122,8 @@ class Processor:
     def contributor(self, data_id: int):
         """Get the user that created the given data objects.
 
-        This function is cached since contributor is immutable.
+        This function is cached since contributor is immutable, except in tests,
+        where ids may be reused.
         """
         return User.objects.get(data__id=data_id)
 
