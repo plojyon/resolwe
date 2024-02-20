@@ -24,12 +24,7 @@ from resolwe.flow.models.annotations import (
     AnnotationValue,
 )
 from resolwe.permissions.models import Permission, get_anonymous_user
-from resolwe.test import (
-    ProcessTestCase,
-    tag_process,
-    with_docker_executor,
-    with_resolwe_host,
-)
+from resolwe.test import ProcessTestCase, tag_process, with_docker_executor
 
 PROCESSES_DIR = os.path.join(os.path.dirname(__file__), "processes")
 WORKFLOWS_DIR = os.path.join(os.path.dirname(__file__), "workflows")
@@ -678,7 +673,6 @@ class PythonProcessDataBySlugTest(ProcessTestCase, LiveServerTestCase):
         sys.platform.startswith("linux"),
         "Accessing live Resolwe host from a Docker container on non-Linux systems is not possible yet.",
     )
-    @with_resolwe_host
     @with_docker_executor
     @tag_process("test-python-process-data-id-by-slug", "test-python-process-2")
     def test_process_data_by_slug(self):

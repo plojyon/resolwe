@@ -33,7 +33,6 @@ __all__ = (
     "with_custom_executor",
     "with_docker_executor",
     "with_null_executor",
-    "with_resolwe_host",
     "is_testing",
 )
 
@@ -210,37 +209,6 @@ def with_null_executor(wrapped_method, instance, args, kwargs):
     return with_custom_executor(NAME="resolwe.flow.executors.null")(wrapped_method)(
         *args, **kwargs
     )
-
-
-@wrapt.decorator
-def with_resolwe_host(wrapped_method, instance, args, kwargs):
-    """Decorate unit test to give it access to a live Resolwe host.
-
-    Set ``RESOLWE_HOST_URL`` setting to the address where the testing
-    live Resolwe host listens to.
-
-    .. note::
-
-        This decorator must be used with a (sub)class of
-        :class:`~django.test.LiveServerTestCase` which starts a live
-        Django server in the background.
-
-    """
-    return wrapped_method
-    if not hasattr(instance, "server_thread"):
-        raise AttributeError(
-            "with_resolwe_host decorator must be used with a "
-            "(sub)class of LiveServerTestCase that has the "
-            "'server_thread' attribute"
-        )
-    host = instance.server_thread.host
-    if platform not in ["linux", "linux2"]:
-        host = "host.docker.internal"
-    resolwe_host_url = "http://{host}:{port}".format(
-        host=host, port=instance.server_thread.port
-    )
-    with override_settings(RESOLWE_HOST_URL=resolwe_host_url):
-        return with_custom_executor(NETWORK="host")(wrapped_method)(*args, **kwargs)
 
 
 def generate_process_tag(slug):
