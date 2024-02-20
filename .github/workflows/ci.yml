@@ -18,8 +18,6 @@ jobs:
     outputs:
       ecr_password: ${{ steps.retrieve_password.outputs.ecr_password }}
     steps:
-      - name: Set up AWS CLI
-        uses: chrislennon/action-aws-cli@1.1
       - name: Retrieve ECR password
         id: retrieve_password
         env:
