@@ -37,7 +37,7 @@ from django.utils.crypto import get_random_string
 import resolwe.test.testcases.setting_overrides as resolwe_settings
 from resolwe.flow.finders import get_finders
 from resolwe.flow.management.commands.prepare_runtime import Command as PrepareRuntime
-from resolwe.flow.managers import listener, manager, state
+from resolwe.flow.managers import manager, state
 from resolwe.observers.consumers import update_constants as update_observer_constants
 from resolwe.observers.utils import background_task_manager
 from resolwe.process.parser import ProcessVisitor
@@ -272,6 +272,8 @@ async def _run_on_infrastructure(meth, *args, **kwargs):
     :param meth: The callable to run on the infrastructure. All other
         arguments are forwarded to it.
     """
+    from resolwe.flow.managers import listener
+
     with TestingContext():
         _create_test_dirs()
         overrides, zmq_socket = _prepare_settings()
