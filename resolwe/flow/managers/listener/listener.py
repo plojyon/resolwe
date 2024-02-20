@@ -109,7 +109,7 @@ class Processor:
         result = [combined[field_name] for field_name in fields]
         return result[0] if isinstance(field_names, str) else result
 
-    @lru_cache(maxsize=100 if not is_testing() else 0)
+    @lru_cache(maxsize=100 if not True else 0)
     def contributor_id(self, data_id: int) -> int:
         """Get the id of the user that created the given data object.
 
@@ -118,7 +118,7 @@ class Processor:
         """
         return self.contributor(data_id).id
 
-    @lru_cache(maxsize=100 if not is_testing() else 0)
+    @lru_cache(maxsize=100 if not True else 0)
     def contributor(self, data_id: int):
         """Get the user that created the given data objects.
 
