@@ -60,7 +60,6 @@ jobs:
         RESOLWE_POSTGRESQL_USER: resolwe
         RESOLWE_POSTGRESQL_PASS: resolwe
         RESOLWE_POSTGRESQL_PORT: 5432
-        RESOLWE_DOCKER_NETWORK: ${{ job.container.network }}
         COMMUNICATION_CONTAINER_LISTENER_CONNECTION: '{"local": "resolwe"}'
         RESOLWE_COMMUNICATOR_IMAGE: "resolwe/com:testing"
       volumes:
@@ -68,10 +67,6 @@ jobs:
         # Process executors must mount certain volumes, so the directories must be shared on the host.
         - /tmp:/tmp
         - /home/runner/_work:/home/runner/_work
-      # ports:
-        # Listener ports must open to the docker host to be accessible to process containers.
-        # Do not open too many ports, as this can take a really long time.
-        # - 60000-60500:60000-60500
       credentials:
         username: AWS
         password: ${{ needs.ecr_login.outputs.ecr_password }}
@@ -83,8 +78,6 @@ jobs:
           POSTGRES_USER: resolwe
           POSTGRES_DB: resolwe
           POSTGRES_PASSWORD: resolwe
-        # ports: 
-          # - 5432/tcp
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -93,8 +86,6 @@ jobs:
 
       redis:
         image: public.ecr.aws/docker/library/redis:7-alpine
-        # ports: 
-          # - 6379/tcp
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -112,8 +103,6 @@ jobs:
       # TODO: remove
       - name: Get stuck
         run: |
-          echo $RESOLWE_DOCKER_NETWORK
-          echo ${{ job.container.network }}
           if [ "${{ matrix.python }}" = "3.10" ]; then touch lock; fi
           while [ -f lock ]; do
             sleep 10
@@ -126,7 +115,8 @@ jobs:
           cd /home/runner/_work/resolwe/resolwe
           # Make sure `python` refers to the tox environment's Python
           export PATH=`pwd`/.tox/${{ matrix.toxenv }}/bin:$PATH
-          ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
+          # job.container.network is uninitialized at the time of setting environment variables
+          RESOLWE_DOCKER_NETWORK=${{ job.container.network }} ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
 
   build:
     runs-on: arc-runner
