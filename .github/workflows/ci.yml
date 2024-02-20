@@ -114,6 +114,8 @@ jobs:
       # TODO: remove
       - name: Get stuck
         run: |
+          echo $RESOLWE_DOCKER_NETWORK
+          echo ${{ job.container.network }}
           if [ "${{ matrix.python }}" = "3.10" ]; then touch lock; fi
           while [ -f lock ]; do
             sleep 10
