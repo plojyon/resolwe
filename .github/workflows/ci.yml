@@ -44,6 +44,8 @@ jobs:
     services:
       postgres: 
         image: public.ecr.aws/docker/library/postgres:14
+        ports:
+          - 5432/tcp
         env:
           POSTGRES_USER: resolwe
           POSTGRES_DB: resolwe
@@ -56,6 +58,8 @@ jobs:
 
       redis:
         image: public.ecr.aws/docker/library/redis:7-alpine
+        ports:
+          - 6379/tcp
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
