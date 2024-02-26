@@ -98,7 +98,7 @@ DATABASES = {
 
 # The Redis database used by Django Channels.
 REDIS_CONNECTION = {
-    "host": "redis",
+    "host": os.environ.get("RESOLWE_REDIS_HOST", "localhost"),
     "port": int(os.environ.get("RESOLWE_REDIS_PORT", 56379)),
     "db": int(os.environ.get("RESOLWE_REDIS_DATABASE", 1)),
     "protocol": (os.environ.get("RESOLWE_REDIS_PROTOCOL", "redis")),
@@ -108,10 +108,14 @@ REDIS_CONNECTION_STRING = "{protocol}://{host}:{port}/{db}".format(**REDIS_CONNE
 LISTENER_CONNECTION = {
     # Keys in the hosts dictionary are workload connector names. Currently
     # supported are 'local', 'kubertenes', 'celery' and 'slurm'.
-    "hosts": {"local": "0.0.0.0"},
+    "hosts": config(
+        "RESOLWE_LISTENER_SERVICE_HOST",
+        default='{"local": "172.17.0.1"}',
+        cast=json.loads,
+    ),
     "port": int(os.environ.get("RESOLWE_LISTENER_SERVICE_PORT", 53893)),
-    "min_port": 60000,
-    "max_port": 60500,
+    "min_port": 50000,
+    "max_port": 60000,
     "protocol": "tcp",
     # Define the max number of commands listener can process simultaneously.
     "max_concurrent_commands": config(
@@ -121,7 +125,11 @@ LISTENER_CONNECTION = {
 
 # The IP address where listener is available from the communication container.
 # The setting is a dictionary where key is the name of the workload connector.
-COMMUNICATION_CONTAINER_LISTENER_CONNECTION = {"local": "resolwe"}
+COMMUNICATION_CONTAINER_LISTENER_CONNECTION = config(
+    "RESOLWE_COMMUNICATION_CONTAINER_LISTENER_CONNECTION",
+    default='{"local": "resolwe"}',
+    cast=json.loads,
+)
 
 #: Add affinity to the Kubernetes jobs. Example:
 #: {"scheduling_class":

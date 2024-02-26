@@ -29,7 +29,7 @@
     slug: test_collection2
     version: 0.0.0
     permission_group: 2
-    
+
 - model: flow.collectionhistory
   pk: 2
   fields:

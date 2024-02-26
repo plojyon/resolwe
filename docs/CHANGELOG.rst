@@ -7,6 +7,20 @@ This project adheres to `Semantic Versioning <http://semver.org/>`_.
 
 
 ===================
+38.4.0 - 2024-02-19
+===================
+
+Fix
+---
+- Store refeneces to all subdirectories of the refenced files to the database
+
+Changed
+-------
+- Bulk delete method silently ignores non-existent objects and objects without
+  edit permissions instead of raising an exception
+
+
+===================
 38.3.2 - 2024-01-25
 ===================
 

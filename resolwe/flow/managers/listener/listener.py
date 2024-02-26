@@ -45,7 +45,7 @@ from resolwe.flow.managers.state import LISTENER_CONTROL_CHANNEL  # noqa: F401
 from resolwe.flow.models import Data, Storage, Worker
 from resolwe.flow.utils import iterate_schema
 from resolwe.storage.models import AccessLog
-from resolwe.test.utils import is_testing
+from resolwe.test.utils import ignore_in_tests, is_testing
 from resolwe.utils import BraceMessage as __
 
 # Register plugins by importing them.
@@ -109,7 +109,7 @@ class Processor:
         result = [combined[field_name] for field_name in fields]
         return result[0] if isinstance(field_names, str) else result
 
-    @lru_cache(maxsize=100 if not is_testing() else 0)
+    @ignore_in_tests(lru_cache(maxsize=100))
     def contributor_id(self, data_id: int) -> int:
         """Get the id of the user that created the given data object.
 
@@ -118,7 +118,7 @@ class Processor:
         """
         return self.contributor(data_id).id
 
-    @lru_cache(maxsize=100 if not is_testing() else 0)
+    @ignore_in_tests(lru_cache(maxsize=100))
     def contributor(self, data_id: int):
         """Get the user that created the given data objects.
 

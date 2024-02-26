@@ -422,9 +422,7 @@ class FlowExecutor(LocalFlowExecutor):
             """Transfer missing image, retry 5 times."""
             client.images.pull(image_name)
 
-        print("1")
         client = docker.from_env()
-        print("2")
         # Pull all the images.
         try:
             try:
@@ -442,7 +440,6 @@ class FlowExecutor(LocalFlowExecutor):
             logger.exception("Docker API error")
             raise RuntimeError("Docker API error")
 
-        print("3")
         loop = asyncio.get_event_loop()
         start_time = time.time()
         try:
@@ -452,13 +449,9 @@ class FlowExecutor(LocalFlowExecutor):
                 {"error": f"Error starting init container: {error}"}
             )
             raise
-        print("4")
-        await loop.run_in_executor(
-            None,
-            lambda: [print("INIT", x) for x in init_container.logs(stream=True)],
-        )
-        init_container_status = init_container.wait()
-        print("5")
+
+        init_container_status = await loop.run_in_executor(None, init_container.wait)
+
         # Return code is as follows:
         # - 0: no error occured, continue processing.
         # - 1: error running init container, abort processing and log error.
@@ -472,7 +465,7 @@ class FlowExecutor(LocalFlowExecutor):
                     {"error": f"Init container returned {init_rc} instead of 0."}
                 )
             return
-        print("6")
+
         try:
             communication_container = client.containers.run(**communication_arguments)
         except docker.errors.APIError as error:
@@ -480,7 +473,6 @@ class FlowExecutor(LocalFlowExecutor):
                 {"error": f"Error starting communication container: {error}"}
             )
             raise
-        print("7")
         try:
             processing_container = client.containers.run(**processing_arguments)
         except docker.errors.APIError as e:
@@ -490,7 +482,7 @@ class FlowExecutor(LocalFlowExecutor):
             with suppress(docker.errors.APIError):
                 communication_container.stop(timeout=1)
             raise
-        print("8")
+
         end_time = time.time()
         logger.info(
             "It took {:.2f}s for Docker containers to start".format(
@@ -498,18 +490,6 @@ class FlowExecutor(LocalFlowExecutor):
             )
         )
         with suppress(docker.errors.NotFound):
-            print("10")
-            await loop.run_in_executor(
-                None,
-                lambda: [
-                    print("PROC", x) for x in processing_container.logs(stream=True)
-                ],
-            )
-
-            print("9")
-            await loop.run_in_executor(
-                None,
-                lambda: [
-                    print("COMM", x) for x in communication_container.logs(stream=True)
-                ],
-            )
+            await loop.run_in_executor(None, communication_container.wait)
+        with suppress(docker.errors.NotFound):
+            await loop.run_in_executor(None, processing_container.wait)

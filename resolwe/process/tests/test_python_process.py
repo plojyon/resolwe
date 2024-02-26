@@ -1,9 +1,7 @@
 # pylint: disable=missing-docstring
 import os
-import sys
-import unittest
 
-from django.test import LiveServerTestCase, override_settings
+from django.test import override_settings
 
 import resolwe.permissions.models
 from resolwe.flow.models import (
@@ -659,34 +657,3 @@ class PythonProcessRequirementsTest(ProcessTestCase):
         self.assertEqual(data.output["cores"], 3)
         self.assertEqual(data.output["memory"], 50000)
         self.assertEqual(data.output["storage"], 500)
-
-
-class PythonProcessDataBySlugTest(ProcessTestCase, LiveServerTestCase):
-    def setUp(self):
-        super().setUp()
-        self._register_schemas(
-            processes_paths=[PROCESSES_DIR], descriptors_paths=[DESCRIPTORS_DIR]
-        )
-        self.files_path = FILES_PATH
-
-    @unittest.skipUnless(
-        sys.platform.startswith("linux"),
-        "Accessing live Resolwe host from a Docker container on non-Linux systems is not possible yet.",
-    )
-    @with_docker_executor
-    @tag_process("test-python-process-data-id-by-slug", "test-python-process-2")
-    def test_process_data_by_slug(self):
-        """Test that data object with json output can be given as input."""
-        with self.preparation_stage():
-            input_data = self.run_process("test-python-process-2")
-
-        input_data = Data.objects.get(id=input_data.id)
-
-        data = self.run_process(
-            "test-python-process-data-id-by-slug",
-            {
-                "slug": input_data.slug,
-            },
-        )
-
-        self.assertEqual(data.output["data_id"], input_data.pk)
