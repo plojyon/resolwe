@@ -13,24 +13,19 @@ on:
     - cron: "30 2 * * *"
 
 jobs:
-  ecr_login:
-    runs-on: ubuntu-latest
-    outputs:
-      ecr_password: ${{ steps.retrieve_password.outputs.ecr_password }}
-    steps:
-      - name: Retrieve ECR password
-        id: retrieve_password
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
-        run: echo "ecr_password=$(aws ecr get-login-password)" >> $GITHUB_OUTPUT
-
   test:
-    needs: ecr_login
     env:
       TOX_COMMAND: "python3.12 -m tox --skip-missing-interpreters false"
-      DOCKER_HOST: unix:///run/docker/docker.sock
+      RESOLWE_REDIS_HOST: redis
+      RESOLWE_REDIS_PORT: 6379
+      RESOLWE_POSTGRESQL_HOST: postgres
+      RESOLWE_POSTGRESQL_NAME: resolwe
+      RESOLWE_POSTGRESQL_USER: resolwe
+      RESOLWE_POSTGRESQL_PASS: resolwe
+      RESOLWE_POSTGRESQL_PORT: 5432
+      # RESOLWE_LISTENER_SERVICE_HOST: '{"local": "0.0.0.0"}'
+      # COMMUNICATION_CONTAINER_LISTENER_CONNECTION: '{"local": "resolwe"}'
+      RESOLWE_COMMUNICATOR_IMAGE: "resolwe/com:testing"
 
     runs-on: arc-runner
     timeout-minutes: 20
@@ -42,37 +37,14 @@ jobs:
             toxenv: "py310"
           - python: "3.11"
             toxenv: "py311"
+          - python: "3.12"
+            toxenv: "py312"
           - python: "3.11"
             toxenv: "linters"
           - python: "3.11"
             toxenv: "packaging"
           - python: "3.11"
             toxenv: "migrations"
-
-    container:
-      image: 342286153875.dkr.ecr.us-east-1.amazonaws.com/genialis/ci/arc-runner:latest
-      options: --hostname resolwe
-      env:
-        DOCKER_HOST: ${{ env.DOCKER_HOST }}
-        RESOLWE_REDIS_HOST: redis
-        RESOLWE_REDIS_PORT: 6379
-        RESOLWE_POSTGRESQL_HOST: postgres
-        RESOLWE_POSTGRESQL_NAME: resolwe
-        RESOLWE_POSTGRESQL_USER: resolwe
-        RESOLWE_POSTGRESQL_PASS: resolwe
-        RESOLWE_POSTGRESQL_PORT: 5432
-        RESOLWE_LISTENER_SERVICE_HOST: '{"local": "0.0.0.0"}'
-        COMMUNICATION_CONTAINER_LISTENER_CONNECTION: '{"local": "resolwe"}'
-        RESOLWE_COMMUNICATOR_IMAGE: "resolwe/com:testing"
-      volumes:
-        - /run/docker:/var/run/docker
-        # Process executors must mount certain volumes, so the directories must be shared on the host.
-        - /tmp:/tmp
-        - /home/runner/_work:/home/runner/_work
-      credentials:
-        username: AWS
-        password: ${{ needs.ecr_login.outputs.ecr_password }}
-
     services:
       postgres: 
         image: public.ecr.aws/docker/library/postgres:14
@@ -104,13 +76,9 @@ jobs:
 
       - name: Test
         run: |
-          # This is the same directory as before, but the path must match
-          # the one on the host, so new docker containers can mount files in it.
-          cd /home/runner/_work/resolwe/resolwe
           # Make sure `python` refers to the tox environment's Python
           export PATH=`pwd`/.tox/${{ matrix.toxenv }}/bin:$PATH
-          # job.container.network is uninitialized at the time of setting environment variables
-          RESOLWE_DOCKER_NETWORK=${{ job.container.network }} ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
+          ${{ env.TOX_COMMAND }} -e ${{ matrix.toxenv }}
 
   build:
     runs-on: arc-runner
