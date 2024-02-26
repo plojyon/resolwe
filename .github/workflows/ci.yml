@@ -16,15 +16,11 @@ jobs:
   test:
     env:
       TOX_COMMAND: "python3.12 -m tox --skip-missing-interpreters false"
-      RESOLWE_REDIS_HOST: redis
       RESOLWE_REDIS_PORT: 6379
-      RESOLWE_POSTGRESQL_HOST: postgres
       RESOLWE_POSTGRESQL_NAME: resolwe
       RESOLWE_POSTGRESQL_USER: resolwe
       RESOLWE_POSTGRESQL_PASS: resolwe
       RESOLWE_POSTGRESQL_PORT: 5432
-      # RESOLWE_LISTENER_SERVICE_HOST: '{"local": "0.0.0.0"}'
-      # COMMUNICATION_CONTAINER_LISTENER_CONNECTION: '{"local": "resolwe"}'
       RESOLWE_COMMUNICATOR_IMAGE: "resolwe/com:testing"
 
     runs-on: arc-runner
