@@ -67,7 +67,7 @@ jobs:
 
       - name: Build communication container
         working-directory: ./resolwe/flow/docker_images
-        run: docker build -f Dockerfile.communication -t $RESOLWE_COMMUNICATOR_IMAGE ../../
+        run: docker build -f Dockerfile.communication -t ${{ env.RESOLWE_COMMUNICATOR_IMAGE }} ../../
 
       - name: Test
         run: |
