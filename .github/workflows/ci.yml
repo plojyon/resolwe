@@ -16,11 +16,6 @@ jobs:
   test:
     env:
       TOX_COMMAND: "python3.12 -m tox --skip-missing-interpreters false"
-      RESOLWE_REDIS_PORT: 6379
-      RESOLWE_POSTGRESQL_NAME: resolwe
-      RESOLWE_POSTGRESQL_USER: resolwe
-      RESOLWE_POSTGRESQL_PASS: resolwe
-      RESOLWE_POSTGRESQL_PORT: 5432
       RESOLWE_COMMUNICATOR_IMAGE: "resolwe/com:testing"
 
     runs-on: arc-runner
@@ -45,7 +40,7 @@ jobs:
       postgres: 
         image: public.ecr.aws/docker/library/postgres:14
         ports:
-          - 5432:5432
+          - 55432:5432
         env:
           POSTGRES_USER: resolwe
           POSTGRES_DB: resolwe
@@ -59,7 +54,7 @@ jobs:
       redis:
         image: public.ecr.aws/docker/library/redis:7-alpine
         ports:
-          - 6379:6379
+          - 56379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
