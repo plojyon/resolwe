@@ -127,7 +127,7 @@ LISTENER_CONNECTION = {
 # The setting is a dictionary where key is the name of the workload connector.
 COMMUNICATION_CONTAINER_LISTENER_CONNECTION = config(
     "RESOLWE_COMMUNICATION_CONTAINER_LISTENER_CONNECTION",
-    default='{"local": "resolwe"}',
+    default=LISTENER_CONNECTION["hosts"],
     cast=json.loads,
 )
 
