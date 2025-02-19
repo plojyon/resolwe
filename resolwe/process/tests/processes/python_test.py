@@ -382,7 +382,7 @@ class DynamicRequirementsProcess(Process):
     process_type = "data:python:requirements"
     requirements = {
         "resources": {
-            "cores": "3+my_group__subgroup__bar",
+            "cores": "",
             "memory": "2**(2+3)*(integer_input == 0) + 120*(integer_input != 0)",
             "storage": "related_object",
         },

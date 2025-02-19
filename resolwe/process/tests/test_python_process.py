@@ -28,6 +28,7 @@ from resolwe.flow.models.annotations import (
     AnnotationType,
     AnnotationValue,
 )
+from resolwe.flow.models.utils.dynamic_resources import _eval_dynamic_requirements
 from resolwe.permissions.models import Permission, get_anonymous_user
 from resolwe.test import (
     ProcessTestCase,
@@ -679,8 +680,33 @@ class PythonProcessRequirementsTest(ProcessTestCase):
         self.assertEqual(data.status, "OK")
 
         self.assertEqual(data.output["cores"], 1)
-        self.assertEqual(data.output["memory"], 120)
-        self.assertEqual(data.output["storage"], 3036)
+        self.assertEqual(
+            data.output["memory"], 2 ** (2 + 3) * (3 == 0) + 120 * (3 != 0)
+        )
+        self.assertEqual(data.output["storage"], related_data.size)
+
+    def test_dynamic_resources_evaluator(self):
+        self.assertEqual(_eval_dynamic_requirements("2 * burek", {"burek": 3}), 6)
+        self.assertEqual(
+            _eval_dynamic_requirements("(foo < 1) + (0 >= foo)", {"foo": False}), 2
+        )
+        self.assertAlmostEqual(_eval_dynamic_requirements("log(2)", {}), 0.6931471805)
+        self.assertAlmostEqual(_eval_dynamic_requirements("exp(2)", {}), 7.3890560989)
+        self.assertEqual(_eval_dynamic_requirements("sqrt(4)", {}), 2)
+        with self.assertRaises(NameError):
+            _eval_dynamic_requirements("foo", {})
+        with self.assertRaises(ValueError):
+            _eval_dynamic_requirements("foo.bar", {"foo": 1, "bar": 2})
+        with self.assertRaises(ValueError):
+            _eval_dynamic_requirements("foo[2]", {"foo": "hello"})
+        with self.assertRaises(NameError):
+            _eval_dynamic_requirements("eval('echo hi')", {})
+        with self.assertRaises(SyntaxError):
+            _eval_dynamic_requirements("import os", {})
+        with self.assertRaises(NameError):
+            _eval_dynamic_requirements('__import__("os")', {})
+        with self.assertRaises(SyntaxError):
+            _eval_dynamic_requirements("2-", {})
 
     @with_docker_executor
     @tag_process("test-python-process-iterate")

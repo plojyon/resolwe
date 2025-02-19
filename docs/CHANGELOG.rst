@@ -13,11 +13,13 @@ Unreleased
 Changed
 -------
 - **BACKWARD INCOMPATIBLE:** Drop support for ``Python 3.11``
+- Support dynamic calculation of processes' resource requirements.
 - Add ``process_exception`` method to auditlog middleware
 - Add ``deleted`` field to ``AnnotationValues`` model
 - Remove not used method ``remove_delete_markers`` from the ``AnnotationValue``
   model
 - Allow using ``DictRelatedField`` on models without version
+- Remove deprecated endpoint ``upload_config_deprecated``
 
 
 ===================
@@ -28,12 +30,10 @@ Changed
 -------
 - **BACKWARD INCOMPATIBLE:** Require ``Django 5.1.x`` and bump version of
   dependencies
-- Support dynamic calculation of processes' resource requirements.
 - Support objects without permissions in ``DictRelatedField``
 - Due to poorly written and unmaintained code, the ``VersionField``
   functionality has been integrated into ``Resolwe``. This integration is based
   on the code from repository https://github.com/mcldev/django-versionfield .
-- Remove deprecated endpoint ``upload_config_deprecated``
 
 Fixed
 -----

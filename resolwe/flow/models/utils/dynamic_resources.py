@@ -4,8 +4,12 @@ import ast
 import dis
 import math
 from functools import reduce
+from typing import TYPE_CHECKING
 
-from resolwe.flow.models import Data, Process
+from resolwe.flow.models import Data
+
+if TYPE_CHECKING:
+    from resolwe.flow.models import Process
 
 
 def _eval_dynamic_requirements(expr: str, variables: dict):
@@ -24,23 +28,26 @@ def _eval_dynamic_requirements(expr: str, variables: dict):
         "UNARY_NOT",  # not
         "LOAD_CONST",  # constants
         "LOAD_NAME",  # variables
-        "CALL_FUNCTION",  # provided functions, e.g. log
+        "CALL",  # provided functions, e.g. log
+        "PUSH_NULL",  # used in CALL
         "RETURN_VALUE",  # implicit return
         "RETURN_CONST",  # implicit return (alt.)
     }
     try:
         compiled = compile(expr, "", "eval")
     except SyntaxError:
-        raise ValueError(f"{expr} is not a valid expression")
+        raise SyntaxError(f"'{expr}' is not a valid expression")
 
-    for instruction in dis.get_instructions(expr):
-        opcode = dis.opname[instruction.opcode]
-        if opcode not in allowed_codes:
-            raise ValueError(f"Operation {opcode} not allowed (in {expr})")
+    used_codes = {instruction.opname for instruction in dis.get_instructions(expr)}
+    if not_allowed := (used_codes - allowed_codes):
+        raise ValueError(f"Illegal operations: {not_allowed} (in '{expr}').")
 
-    scope = {"log": math.log, "exp": math.exp, "sqrt": math.sqrt}
-    scope.update(variables)
-    scope.update({"__builtins__": {}})
+    scope = {
+        "log": math.log,
+        "exp": math.exp,
+        "sqrt": math.sqrt,
+        "__builtins__": {},
+    } | variables
     return eval(compiled, scope)
 
 
@@ -60,18 +67,19 @@ def _resolve_value(name: str, input_values: dict, input_schema: list):
         value = reduce(dict.get, keys, input_values)
         type_ = reduce(schema_get, keys, input_schema)["type"]
     except (KeyError, StopIteration):
-        raise ValueError(f"Unrecognized variable {name}")
+        raise ValueError(f"Unrecognized variable '{name}'")
 
     # More types may be supported as needed.
-    if type_ == "data:":
-        return Data.objects.get(pk=value).size
-    elif type_ in ("basic:integer:", "basic:float:", "basic:boolean:"):
-        return value
+    match type_:
+        case "data:":
+            return Data.objecs.filter(pk=value).values_list("size", flat=True).get()
+        case "basic:integer:" | "basic:float:" | "basic:boolean:":
+            return value
+        case _:
+            raise ValueError(f"Unsupported type {type_}")
 
-    raise ValueError(f"Unsupported type {type_}")
 
-
-def get_dynamic_resource_limits(process: Process, data: Data):
+def get_dynamic_resource_limits(process: "Process", data: Data):
     """Get the dynamic resource requirements for this process."""
     resources = {}
 
@@ -80,6 +88,8 @@ def get_dynamic_resource_limits(process: Process, data: Data):
     for resource, formula in requirements.items():
         if isinstance(formula, (int, float)):
             resources[resource] = formula
+            continue
+        if formula == "":
             continue
 
         # Get variables used in the expression.
@@ -90,14 +100,12 @@ def get_dynamic_resource_limits(process: Process, data: Data):
         # Find the values of the used variables.
         try:
             variables = {
-                var: _resolve_value(var, data.input, process.input_schema)
-                for var in used_variables
+                variable: _resolve_value(variable, data.input, process.input_schema)
+                for variable in used_variables
             }
         except ValueError as exc:
-            raise ValueError(f"{exc} in requirements for {resource}: {formula}")
+            raise ValueError(f"{exc} in requirements for {resource}: '{formula}'")
 
-        amount = _eval_dynamic_requirements(process, formula, variables)
-        if amount is not None:
-            resources[resource] = amount
+        resources[resource] = _eval_dynamic_requirements(process, formula, variables)
 
     return resources
