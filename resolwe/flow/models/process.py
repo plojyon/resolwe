@@ -8,6 +8,7 @@ from django.contrib.postgres.indexes import GinIndex
 from django.core.validators import RegexValidator
 from django.db import models
 
+from resolwe.flow.models.utils.dynamic_resources import get_dynamic_resource_limits
 from resolwe.permissions.models import PermissionObject
 
 from .base import BaseManagerWithoutVersion, BaseModel
@@ -226,7 +227,7 @@ class Process(BaseModel, PermissionObject):
         resources_map = ChainMap(
             data.process_resources if data is not None else {},
             environment_resources,
-            self.requirements.get("resources", {}),
+            get_dynamic_resource_limits(self, data) if data is not None else {},
             getattr(settings, "FLOW_PROCESS_RESOURCE_DEFAULTS", {}),
             fallback,
         )
