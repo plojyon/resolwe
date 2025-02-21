@@ -72,7 +72,7 @@ def _resolve_value(name: str, input_values: dict, input_schema: list):
     # More types may be supported as needed.
     match type_:
         case "data:":
-            return Data.objecs.filter(pk=value).values_list("size", flat=True).get()
+            return Data.objects.filter(pk=value).values_list("size", flat=True).get()
         case "basic:integer:" | "basic:float:" | "basic:boolean:":
             return value
         case _:
@@ -106,6 +106,6 @@ def get_dynamic_resource_limits(process: "Process", data: Data):
         except ValueError as exc:
             raise ValueError(f"{exc} in requirements for {resource}: '{formula}'")
 
-        resources[resource] = _eval_dynamic_requirements(process, formula, variables)
+        resources[resource] = _eval_dynamic_requirements(formula, variables)
 
     return resources
