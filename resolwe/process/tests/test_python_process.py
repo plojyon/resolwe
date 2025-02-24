@@ -690,6 +690,9 @@ class PythonProcessRequirementsTest(ProcessTestCase):
         self.assertEqual(data.output["memory"], 4096)  # default
         self.assertEqual(data.output["storage"], 3.5e9)
 
+        # Reset estimators.
+        resources.PROCESS_RESOURCES = {}
+
     @with_docker_executor
     @tag_process("test-python-process-iterate")
     def test_python_process_iterate(self):
