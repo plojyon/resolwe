@@ -670,9 +670,9 @@ class PythonProcessRequirementsTest(ProcessTestCase):
         data.refresh_from_db()
         self.assertEqual(data.status, "OK")
 
-        self.assertEqual(data.output["cores"], 1)
+        self.assertEqual(data.output["cores"], 2)
         self.assertEqual(data.output["memory"], 4096)
-        self.assertEqual(data.output["storage"], 10)
+        self.assertEqual(data.output["storage"], 200)
 
         @resources.estimator("test-python-process-requirements", "cores")
         def cores_estimator(data):

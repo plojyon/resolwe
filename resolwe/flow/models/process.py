@@ -237,6 +237,7 @@ class Process(BaseModel, PermissionObject):
             data.process_resources if data is not None else {},
             environment_resources,
             dynamic_resources,
+            self.requirements.get("resources", {}),
             getattr(settings, "FLOW_PROCESS_RESOURCE_DEFAULTS", {}),
             fallback,
         )
