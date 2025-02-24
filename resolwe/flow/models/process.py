@@ -8,8 +8,8 @@ from django.contrib.postgres.indexes import GinIndex
 from django.core.validators import RegexValidator
 from django.db import models
 
-from resolwe.process.resources import PROCESS_RESOURCES
 from resolwe.permissions.models import PermissionObject
+from resolwe.process.resources import PROCESS_RESOURCES
 
 from .base import BaseManagerWithoutVersion, BaseModel
 from .data import Data

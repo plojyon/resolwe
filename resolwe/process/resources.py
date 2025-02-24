@@ -6,7 +6,7 @@ PROCESS_RESOURCES = defaultdict(dict)
 
 
 def estimator(process_slug, resource):
-    """Decorator for resource consumption estimators."""
+    """Register resource consumption estimator."""
 
     def decorator(func):
         """Register resource consumption estimator."""

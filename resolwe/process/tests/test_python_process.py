@@ -29,8 +29,8 @@ from resolwe.flow.models.annotations import (
     AnnotationType,
     AnnotationValue,
 )
-from resolwe.process import resources
 from resolwe.permissions.models import Permission, get_anonymous_user
+from resolwe.process import resources
 from resolwe.test import (
     ProcessTestCase,
     tag_process,
